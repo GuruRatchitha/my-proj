@@ -77,12 +77,9 @@ const buildProfilePayload = (profile) => {
     aadharNumber: profile.aadharNumber.replace(/\s/g, ''),
     address: profile.address.trim(),
     panCardNumber: profile.panCardNumber.trim().toUpperCase(),
+    password: profile.password || PASSWORD_MASK,
     phoneNumber: profile.phoneNumber.replace(/\s/g, ''),
     username: profile.username.trim(),
-  }
-
-  if (profile.password && profile.password !== PASSWORD_MASK) {
-    payload.password = profile.password
   }
 
   return payload
@@ -149,7 +146,7 @@ function Profile() {
 
       setProfile(nextProfile)
       setLastSavedProfile(nextProfile)
-      setStatusMessage('Profile changes saved.')
+      alert('Profile changes saved successfully.')
     } catch (error) {
       setStatusMessage(error.message || 'Unable to save profile changes.')
     } finally {
@@ -214,22 +211,22 @@ function Profile() {
         </div>
 
         <div className="form-actions">
-          <button className="btn add-payment" type="submit" disabled={isLoading || isSubmitting}>
+          <button className="profile-action-button primary-action" type="submit" disabled={isLoading || isSubmitting}>
             <i className="bi bi-check2" aria-hidden="true"></i>
             {isSubmitting ? 'Saving...' : 'Save Changes'}
           </button>
-          <button
-            className="btn ghost-button"
+          {/* <button
+            className="profile-action-button secondary-action"
             type="button"
             onClick={handleReset}
             disabled={isLoading || isSubmitting}
           >
             <i className="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
-            Reset
-          </button>
+            Cancel
+          </button> */}
         </div>
 
-        {statusMessage && <p className="dashboard-state">{statusMessage}</p>}
+        {statusMessage && <p className="dashboard-state error">{statusMessage}</p>}
       </form>
     </div>
   )

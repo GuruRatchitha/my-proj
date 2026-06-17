@@ -1,7 +1,45 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import '../pages/dashboard/Dashboard.css'
 
 function BankLayout() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isTransactionsScreen = location.pathname === '/transactions'
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [paymentForm, setPaymentForm] = useState({
+    name: '',
+    ifscCode: '',
+    accountNumber: '',
+    address: '',
+  })
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken')
+    navigate('/')
+  }
+
+  const handlePaymentChange = (event) => {
+    const { name, value } = event.target
+
+    setPaymentForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }))
+  }
+
+  const handlePaymentSubmit = (event) => {
+    event.preventDefault()
+    alert('Payment beneficiary added successfully.')
+    setPaymentForm({
+      name: '',
+      ifscCode: '',
+      accountNumber: '',
+      address: '',
+    })
+    setIsPaymentModalOpen(false)
+  }
+
   return (
     <main className="bank-dashboard">
       <aside className="sidebar">
@@ -14,27 +52,25 @@ function BankLayout() {
 
         <nav className="workspace-nav" aria-label="Workspace">
           <span className="nav-label">Workspace</span>
-          <NavLink className="nav-link" to="/dashboard">
+          <NavLink className="sidebar-link" to="/dashboard">
             <i className="bi bi-grid-1x2" aria-hidden="true"></i>
             <span>Dashboard</span>
           </NavLink>
-          <NavLink className="nav-link" to="/profile">
-            <i className="bi bi-person" aria-hidden="true"></i>
-            <span>Profile</span>
-          </NavLink>
-          <NavLink className="nav-link" to="/transactions">
+          <NavLink className="sidebar-link" to="/transactions">
             <i className="bi bi-arrow-left-right" aria-hidden="true"></i>
             <span>Transactions</span>
           </NavLink>
         </nav>
 
         <div className="profile-card">
-          <span className="avatar">A</span>
-          <div>
-            <strong>Ava Thompson</strong>
-            <small>Personal</small>
-          </div>
-          <button className="sidebar-action" type="button" aria-label="Sign out">
+          <NavLink className="profile-hit-area" to="/profile">
+            <span className="avatar">A</span>
+            <span className="profile-link">
+              <strong>Ava Thompson</strong>
+              <small>Personal</small>
+            </span>
+          </NavLink>
+          <button className="sidebar-action" type="button" aria-label="Sign out" onClick={handleLogout}>
             <i className="bi bi-box-arrow-right" aria-hidden="true"></i>
           </button>
         </div>
@@ -44,21 +80,93 @@ function BankLayout() {
         <header className="topbar">
           <div className="welcome">
             <span>Welcome back</span>
-            <strong>Ava Thompson</strong>
+            <NavLink to="/profile">Ava Thompson</NavLink>
           </div>
           <div className="topbar-actions">
-            <button className="icon-button" type="button" aria-label="Notifications">
-              <i className="bi bi-bell" aria-hidden="true"></i>
-            </button>
-            <button className="btn add-payment" type="button">
-              <i className="bi bi-plus-lg" aria-hidden="true"></i>
-              Add payment
-            </button>
+            {isTransactionsScreen && (
+              <button className="add-payment" type="button" onClick={() => setIsPaymentModalOpen(true)}>
+                <i className="bi bi-plus-lg" aria-hidden="true"></i>
+                <span>Add Payment</span>
+              </button>
+            )}
           </div>
         </header>
 
         <Outlet />
       </section>
+
+      {isPaymentModalOpen && (
+        <div className="payment-modal-backdrop" role="presentation">
+          <section className="payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title">
+            <header className="payment-modal-header">
+              <div>
+                <h2 id="payment-modal-title">Add Payment</h2>
+                <p>Add beneficiary details for a new payment.</p>
+              </div>
+              <button
+                className="modal-close-button"
+                type="button"
+                aria-label="Close add payment"
+                onClick={() => setIsPaymentModalOpen(false)}
+              >
+                <i className="bi bi-x-lg" aria-hidden="true"></i>
+              </button>
+            </header>
+
+            <form className="payment-form" onSubmit={handlePaymentSubmit}>
+              <label className="bank-field">
+                <span>Name</span>
+                <input
+                  name="name"
+                  type="text"
+                  value={paymentForm.name}
+                  onChange={handlePaymentChange}
+                  required
+                />
+              </label>
+              <label className="bank-field">
+                <span>IFSC code</span>
+                <input
+                  name="ifscCode"
+                  type="text"
+                  value={paymentForm.ifscCode}
+                  onChange={handlePaymentChange}
+                  required
+                />
+              </label>
+              <label className="bank-field">
+                <span>Account no</span>
+                <input
+                  name="accountNumber"
+                  type="text"
+                  value={paymentForm.accountNumber}
+                  onChange={handlePaymentChange}
+                  required
+                />
+              </label>
+              <label className="bank-field payment-address-field">
+                <span>Address</span>
+                <input
+                  name="address"
+                  type="text"
+                  value={paymentForm.address}
+                  onChange={handlePaymentChange}
+                  required
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button className="profile-action-button secondary-action" type="button" onClick={() => setIsPaymentModalOpen(false)}>
+                  Cancel
+                </button>
+                <button className="profile-action-button primary-action" type="submit">
+                  Add Payment
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

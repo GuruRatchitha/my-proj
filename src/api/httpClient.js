@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { startLoading, stopLoading } from './loadingStore'
 
 const API_BASE_URL = 'http://localhost:8080'
 
@@ -14,6 +15,8 @@ httpClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken')
   const userId = localStorage.getItem('userId') || '1'
 
+  startLoading()
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -21,11 +24,18 @@ httpClient.interceptors.request.use((config) => {
   config.headers['X-User-Id'] = userId
 
   return config
+}, (error) => {
+  stopLoading()
+  return Promise.reject(error)
 })
 
 httpClient.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    stopLoading()
+    return response.data
+  },
   (error) => {
+    stopLoading()
     const message =
       error.response?.data?.message ||
       error.response?.data?.error ||

@@ -1,6 +1,11 @@
+import { useState } from 'react'
 import { accounts, summaryCards, transactions } from './dashboardData'
 
 function Dashboard() {
+  const [showAllAccounts, setShowAllAccounts] = useState(false)
+  const [isBalanceVisible, setIsBalanceVisible] = useState(true)
+  const visibleAccounts = showAllAccounts ? accounts : accounts.slice(0, 3)
+
   return (
     <div className="dashboard-main">
       <section className="title-block">
@@ -16,10 +21,25 @@ function Dashboard() {
           >
             <div className="card-heading">
               <span>{card.eyebrow}</span>
-              {card.icon && <i className={`bi bi-${card.icon}`} aria-hidden="true"></i>}
+              {card.icon && card.type === 'balance' && (
+                <button
+                  className="balance-toggle"
+                  type="button"
+                  aria-label={isBalanceVisible ? 'Hide balance' : 'Show balance'}
+                  onClick={() => setIsBalanceVisible((currentValue) => !currentValue)}
+                >
+                  <i
+                    className={`bi bi-${isBalanceVisible ? 'eye' : 'eye-slash'}`}
+                    aria-hidden="true"
+                  ></i>
+                </button>
+              )}
+              {card.icon && card.type !== 'balance' && (
+                <i className={`bi bi-${card.icon}`} aria-hidden="true"></i>
+              )}
               {card.status && <span className={`status-dot ${card.status}`} />}
             </div>
-            <strong>{card.value}</strong>
+            <strong>{card.type === 'balance' && !isBalanceVisible ? '*****' : card.value}</strong>
             <small>{card.detail}</small>
           </article>
         ))}
@@ -31,16 +51,21 @@ function Dashboard() {
             <h2>Your accounts</h2>
             <p>Live view across your portfolio.</p>
           </div>
-          <a href="#accounts">View all</a>
+          <button
+            className="section-link"
+            type="button"
+            onClick={() => setShowAllAccounts((currentValue) => !currentValue)}
+          >
+            {showAllAccounts ? 'Show less' : 'View all'}
+          </button>
         </div>
 
         <div className="accounts-grid" id="accounts">
-          {accounts.map((account) => (
+          {visibleAccounts.map((account) => (
             <article className="account-card" key={account.id}>
               <span className="account-id">{account.id}</span>
               <span className="account-pill">{account.type}</span>
               <strong>{account.amount}</strong>
-              <small className={account.tone}>{account.trend}</small>
             </article>
           ))}
         </div>

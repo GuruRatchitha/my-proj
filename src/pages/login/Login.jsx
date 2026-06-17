@@ -1,0 +1,230 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import httpClient from '../../api/httpClient'
+import './login.css'
+
+const initialForm = {
+  email: '',
+  password: '',
+}
+
+function LoginPage() {
+  const navigate = useNavigate()
+  const [formData, setFormData] = useState(initialForm)
+  const [errors, setErrors] = useState({})
+  const [statusMessage, setStatusMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const validateForm = () => {
+    const nextErrors = {}
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+    if (!formData.email.trim()) {
+      nextErrors.email = 'Email is required.'
+    } else if (!emailPattern.test(formData.email)) {
+      nextErrors.email = 'Enter a valid email address.'
+    }
+
+    if (!formData.password) {
+      nextErrors.password = 'Password is required.'
+    } else if (formData.password.length < 8) {
+      nextErrors.password = 'Password must be at least 8 characters.'
+    }
+
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
+  }
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+
+    setFormData((currentData) => ({
+      ...currentData,
+      [name]: value,
+    }))
+
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [name]: '',
+    }))
+    setStatusMessage('')
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!validateForm()) {
+      setStatusMessage('')
+      return
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage('')
+
+    try {
+      const payload = {
+        email: formData.email.trim(),
+        password: formData.password,
+      }
+      const response = await httpClient.post('/api/auth/login', payload)
+      const token = response?.token || response?.accessToken || response?.data?.token
+
+      if (token) {
+        localStorage.setItem('authToken', token)
+      }
+
+      setStatusMessage('Login successful. Redirecting to your dashboard...')
+      if (response?.message === "Login successful") {
+        navigate('/dashboard')
+      } else {
+        alert("Unable to Login")
+      }
+    } catch (error) {
+      if (error?.message === "Invalid email or password") {
+        alert(error?.message || "Failed to Login")
+      }
+      setStatusMessage(error.message || 'Unable to sign in. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <main className="bank-login-page">
+      <div className="container-fluid bank-shell">
+        <div className="row align-items-center min-vh-100 g-0">
+          <section className="col-12 col-xl-7 bank-hero">
+            <div className="brand-mark">
+              <span className="brand-icon">
+                <i className="bi bi-bank2" aria-hidden="true"></i>
+              </span>
+              <span className="brand-name">ABC Bank</span>
+            </div>
+
+            <div className="hero-content">
+              <div className="feature-badge">
+                <i className="bi bi-stars" aria-hidden="true"></i>
+                <span>New &middot; Secure online banking workspace</span>
+              </div>
+
+              <h1 className="hero-title">
+                Banking that
+                <br />
+                feels
+                <br />
+                <span>effortless.</span>
+              </h1>
+
+              <p className="hero-description">
+                Move money, manage beneficiaries, and approve
+                <br />
+                transactions &mdash; all from one luminous interface
+                <br />
+                designed for clarity and speed.
+              </p>
+
+              <div className="trust-row">
+                <span>
+                  <i className="bi bi-shield-check" aria-hidden="true"></i>
+                  SOC 2 Type II
+                </span>
+                <span>
+                  <i className="bi bi-lock" aria-hidden="true"></i>
+                  256-bit encryption
+                </span>
+                <span>
+                  <i className="bi bi-stars" aria-hidden="true"></i>
+                  99.99% uptime
+                </span>
+              </div>
+            </div>
+
+            <p className="copyright">
+              &copy; 2026 ABC Bank Financial. All rights reserved.
+            </p>
+          </section>
+
+          <section className="col-12 col-xl-5 login-pane">
+            <div className="login-card">
+              <div className="login-card-header">
+                <h2>Welcome back !!</h2>
+                <p>Sign in to continue to your account.</p>
+              </div>
+
+              <p className="mode-helper">
+                Access your accounts, transactions, and beneficiaries.
+              </p>
+
+              <form className="login-form" onSubmit={handleSubmit} noValidate>
+                <div className="form-group">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    className={`form-control ${errors.email ? 'is-invalid' : ''}`}
+                    placeholder="ava@abcbank.com"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    aria-invalid={Boolean(errors.email)}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
+                  />
+                  {errors.email && (
+                    <p className="field-error" id="email-error">
+                      {errors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <div className="password-label-row">
+                    <label htmlFor="password">Password</label>
+                    {/* <button
+                      className="forgot-button"
+                      type="button"
+                      onClick={handleForgotPassword}
+                    >
+                      Forgot?
+                    </button> */}
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    className={`form-control ${errors.password ? 'is-invalid' : ''
+                      }`}
+                    placeholder="********"
+                    autoComplete="current-password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={
+                      errors.password ? 'password-error' : undefined
+                    }
+                  />
+                  {errors.password && (
+                    <p className="field-error" id="password-error">
+                      {errors.password}
+                    </p>
+                  )}
+                </div>
+
+                <button type="submit" className="sign-in-button" disabled={isSubmitting}>
+                  <span>{isSubmitting ? 'Signing in...' : 'Sign in'}</span>
+                  <i className="bi bi-arrow-right" aria-hidden="true"></i>
+                </button>
+              </form>
+
+              {statusMessage && <p className="status-message">{statusMessage}</p>}
+
+              <p className="demo-note">Use your registered banking credentials.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+export default LoginPage

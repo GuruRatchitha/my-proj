@@ -1,12 +1,23 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import httpClient from '../../api/httpClient'
+import { clearStoredUserId, getUserIdFromData, getUserIdFromToken, storeUserId } from '../../api/currentUser'
 import './login.css'
 
 const initialForm = {
   email: '',
   password: '',
 }
+
+const getUsernameFromLoginResponse = (response) =>
+  response?.username ||
+  response?.name ||
+  response?.user?.username ||
+  response?.user?.name ||
+  response?.data?.username ||
+  response?.data?.name ||
+  response?.data?.user?.username ||
+  response?.data?.user?.name
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -68,9 +79,23 @@ function LoginPage() {
       }
       const response = await httpClient.post('/api/auth/login', payload)
       const token = response?.token || response?.accessToken || response?.data?.token
+      const username = getUsernameFromLoginResponse(response)
+      const userId = getUserIdFromData(response) || getUserIdFromToken(token)
 
       if (token) {
         localStorage.setItem('authToken', token)
+      }
+
+      if (userId || userId === 0) {
+        storeUserId(userId)
+      } else {
+        clearStoredUserId()
+      }
+
+      if (username) {
+        localStorage.setItem('username', username)
+      } else {
+        localStorage.removeItem('username')
       }
 
       setStatusMessage('Login successful. Redirecting to your dashboard...')

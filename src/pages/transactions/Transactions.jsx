@@ -18,6 +18,9 @@ function Transactions() {
     const loadTransactions = async () => {
       try {
         setIsLoading(true)
+        setTransactionRows([])
+        setErrorMessage('')
+
         const transactions = await fetchTransactions()
 
         if (isMounted) {

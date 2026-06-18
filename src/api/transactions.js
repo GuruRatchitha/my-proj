@@ -1,4 +1,5 @@
 import httpClient from './httpClient'
+import { getStoredUserId, getUserIdFromData, storeUserId } from './currentUser'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -47,15 +48,59 @@ const getDashboardIcon = (transaction) => {
   return getTransactionTone(transaction) === 'credit' ? 'arrow-down' : 'arrow-up-right'
 }
 
+const getAccountBalance = (transaction) => {
+  const balance =
+    transaction.accountBalance ??
+    transaction.currentBalance ??
+    transaction.availableBalance ??
+    transaction.balance
+
+  return balance || balance === 0 ? Number(balance) : null
+}
+
+const getCurrentUserId = async () => {
+  let userId = getStoredUserId()
+
+  if (!userId) {
+    const profile = await httpClient.get('/api/users/profile')
+    const profileUserId = getUserIdFromData(profile)
+    userId = profileUserId || profileUserId === 0 ? String(profileUserId) : ''
+
+    if (userId) {
+      storeUserId(userId)
+    }
+  }
+
+  if (!userId) {
+    throw new Error('Unable to identify the current user.')
+  }
+
+  return userId
+}
+
+const normalizeDashboardAccount = (account) => ({
+  id: account.accountNumber,
+  type: toTitleCase(account.accountType),
+  amount: currencyFormatter.format(Number(account.balance || 0)),
+  balance: Number(account.balance || 0),
+  monthlyChange: Number(account.monthlyChange || 0),
+})
+
 export const normalizeTransaction = (transaction) => {
   const tone = getTransactionTone(transaction)
-  const amount = currencyFormatter.format(Number(transaction.amount || 0))
+  const rawAmount = Number(transaction.amount || 0)
+  const amount = currencyFormatter.format(rawAmount)
 
   return {
     id: transaction.transactionReference,
     date: formatTransactionDate(transaction.transactionDate),
     receiverName: transaction.beneficiaryName,
     accountNumber: transaction.accountNumber,
+    accountType: transaction.accountType,
+    accountBalance: getAccountBalance(transaction),
+    rawAmount,
+    signedAmount: tone === 'credit' ? rawAmount : -rawAmount,
+    currency: transaction.currency || 'USD',
     amount: tone === 'credit' ? `+${amount}` : `-${amount}`,
     type: toTitleCase(transaction.accountType),
     status: toTitleCase(transaction.transferStatus),
@@ -66,9 +111,48 @@ export const normalizeTransaction = (transaction) => {
   }
 }
 
-export const fetchTransactions = async (limit) => {
-  const endpoint = limit ? `/api/transactions?limit=${limit}` : '/api/transactions'
-  const transactions = await httpClient.get(endpoint)
+export const fetchDashboardSummary = async () => {
+  const params = new URLSearchParams()
+  const userId = await getCurrentUserId()
 
-  return Array.isArray(transactions) ? transactions.map(normalizeTransaction) : []
+  params.set('userId', userId)
+
+  const endpoint = `/api/dashboard/summary?${params.toString()}`
+  console.log('fetchDashboardSummary userId:', userId)
+  console.log('fetchDashboardSummary endpoint:', endpoint)
+
+  const response = await httpClient.get(endpoint)
+  const accounts = Array.isArray(response?.accounts) ? response.accounts : []
+
+  console.log('fetchDashboardSummary accounts returned:', accounts.length)
+
+  return {
+    totalBalance: Number(response?.totalBalance || 0),
+    accountCount: Number(response?.accountCount || accounts.length || 0),
+    completedTransactions: Number(response?.completedTransactions || 0),
+    pendingTransactions: Number(response?.pendingTransactions || 0),
+    accounts: accounts.map(normalizeDashboardAccount),
+  }
+}
+
+export const fetchTransactions = async (limit) => {
+  const params = new URLSearchParams()
+  const userId = await getCurrentUserId()
+
+  params.set('userId', userId)
+
+  if (limit || limit === 0) {
+    params.set('limit', limit)
+  }
+
+  const endpoint = `/api/dashboard/transactions?${params.toString()}`
+  console.log('fetchTransactions userId:', userId)
+  console.log('fetchTransactions endpoint:', endpoint)
+
+  const response = await httpClient.get(endpoint)
+  const transactions = Array.isArray(response?.transactions) ? response.transactions : []
+
+  console.log('fetchTransactions returned:', transactions.length)
+
+  return transactions.map(normalizeTransaction)
 }

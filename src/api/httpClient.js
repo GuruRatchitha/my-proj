@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { startLoading, stopLoading } from './loadingStore'
+import { getStoredUserId } from './currentUser'
 
 const API_BASE_URL = 'http://localhost:8080'
 
@@ -13,7 +14,7 @@ const httpClient = axios.create({
 
 httpClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken')
-  const userId = localStorage.getItem('userId') || '1'
+  const userId = getStoredUserId()
 
   startLoading()
 
@@ -21,7 +22,9 @@ httpClient.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`
   }
 
-  config.headers['X-User-Id'] = userId
+  if (userId) {
+    config.headers['X-User-Id'] = userId
+  }
 
   return config
 }, (error) => {

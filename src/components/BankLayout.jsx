@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import httpClient from '../api/httpClient'
+import { getUserIdFromData, storeUserId } from '../api/currentUser'
 import '../pages/dashboard/Dashboard.css'
 
 function BankLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const isTransactionsScreen = location.pathname === '/transactions'
+  const [profileName, setProfileName] = useState(localStorage.getItem('username') || 'Account holder')
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentForm, setPaymentForm] = useState({
     name: '',
@@ -16,8 +19,37 @@ function BankLayout() {
 
   const handleLogout = () => {
     localStorage.removeItem('authToken')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('username')
     navigate('/')
   }
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadProfileName = async () => {
+      try {
+        const profile = await httpClient.get('/api/users/profile')
+        const nextProfileName = profile?.username || profile?.email || 'Account holder'
+
+        if (isMounted) {
+          setProfileName(nextProfileName)
+          localStorage.setItem('username', nextProfileName)
+          storeUserId(getUserIdFromData(profile))
+        }
+      } catch {
+        if (isMounted) {
+          setProfileName(localStorage.getItem('username') || 'Account holder')
+        }
+      }
+    }
+
+    loadProfileName()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handlePaymentChange = (event) => {
     const { name, value } = event.target
@@ -68,9 +100,9 @@ function BankLayout() {
 
         <div className="profile-card">
           <NavLink className="profile-hit-area" to="/profile">
-            <span className="avatar">A</span>
+            <span className="avatar">{profileName.charAt(0).toUpperCase()}</span>
             <span className="profile-link">
-              <strong>Ava Thompson</strong>
+              <strong>{profileName}</strong>
               <small>Personal</small>
             </span>
           </NavLink>
@@ -84,7 +116,7 @@ function BankLayout() {
         <header className="topbar">
           <div className="welcome">
             <span>Welcome back</span>
-            <NavLink to="/profile">Ava Thompson</NavLink>
+            <NavLink to="/profile">{profileName}</NavLink>
           </div>
           <div className="topbar-actions">
             {isTransactionsScreen && (

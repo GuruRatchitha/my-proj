@@ -775,9 +775,138 @@
   margin-top: 18px;
   padding: 20px;
   border: 1px solid #dce5ef;
-  border-radius: 14px;
+  border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(15, 37, 61, 0.05);
+}
+
+.beneficiary-hero-card {
+  min-height: 168px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  overflow: hidden;
+  padding: 28px;
+  border-radius: 20px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 86% 16%, rgba(126, 181, 255, 0.58), transparent 30%),
+    linear-gradient(135deg, #2140a6 0%, #276ce9 100%);
+  box-shadow: 0 13px 30px rgba(38, 108, 233, 0.22);
+}
+
+.beneficiary-hero-card h1 {
+  margin: 12px 0 8px;
+  font-size: 28px;
+  line-height: 1.05;
+  font-weight: 900;
+}
+
+.beneficiary-hero-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.beneficiary-kicker {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.beneficiary-hero-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.beneficiary-hero-icon i {
+  font-size: 27px;
+}
+
+.beneficiary-form-card {
+  margin-top: 20px;
+}
+
+.beneficiary-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 18px;
+  border: 1px solid #bce8d1;
+  border-radius: 12px;
+  color: #146c43;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.beneficiary-table-wrap {
+  padding: 0;
+}
+
+.beneficiary-table {
+  min-width: 1040px;
+}
+
+.beneficiary-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #111827;
+  font-weight: 850;
+}
+
+.beneficiary-name-cell i {
+  color: #2f88ff;
+  font-size: 16px;
+}
+
+.beneficiary-status-badge {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #e6f7ee;
+  color: #219a5f;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.table-payment-button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #1763c7, #2f88ff);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 850;
+  box-shadow: 0 8px 16px rgba(23, 99, 199, 0.18);
+}
+
+.table-payment-button:hover {
+  background: linear-gradient(135deg, #104f9f, #1f73df);
+  transform: translateY(-1px);
 }
 
 .form-grid {

@@ -60,6 +60,10 @@ function BankLayout() {
             <i className="bi bi-arrow-left-right" aria-hidden="true"></i>
             <span>Transactions</span>
           </NavLink>
+          <NavLink className="sidebar-link" to="/beneficiary">
+            <i className="bi bi-person-lines-fill" aria-hidden="true"></i>
+            <span>Beneficiary</span>
+          </NavLink>
         </nav>
 
         <div className="profile-card">

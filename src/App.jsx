@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import AppLoader from './components/AppLoader'
 import BankLayout from './components/BankLayout'
+import Beneficiary from './pages/beneficiary/Beneficiary'
 import Dashboard from './pages/dashboard/Dashboard'
 import LoginPage from './pages/login/Login'
 import Profile from './pages/profile/Profile'
@@ -17,6 +18,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/beneficiary" element={<Beneficiary />} />
         </Route>
       </Routes>
     </>

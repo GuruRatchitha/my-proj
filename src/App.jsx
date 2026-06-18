@@ -1,5 +1,4 @@
 import { Route, Routes } from 'react-router-dom'
-import AppLoader from './components/AppLoader'
 import BankLayout from './components/BankLayout'
 import Beneficiary from './pages/beneficiary/Beneficiary'
 import Dashboard from './pages/dashboard/Dashboard'
@@ -10,7 +9,6 @@ import Transactions from './pages/transactions/Transactions'
 function App() {
   return (
     <>
-      <AppLoader />
       <Routes>
         {/* <Route path="/" element={<Navigate to="/dashboard" replace />} /> */}
         <Route path="/" element={<LoginPage />} />

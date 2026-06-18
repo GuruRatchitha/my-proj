@@ -1,25 +1,39 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { fetchTransactions } from '../../api/transactions'
-import { accounts } from '../dashboard/dashboardData'
 
 const rowsPerPage = 10
 const statusOptions = ['All', 'Completed', 'Pending', 'Failed']
-const accountOptions = [
-  { label: 'All accounts', value: 'All accounts' },
-  ...accounts.map((account) => ({
-    label: `${account.type} (${account.id})`,
-    value: account.type,
-  })),
-]
+const allAccountsFilter = 'All accounts'
 
 function Transactions() {
   const [transactionRows, setTransactionRows] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
-  const [accountFilter, setAccountFilter] = useState('All accounts')
+  const [accountFilter, setAccountFilter] = useState(allAccountsFilter)
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+
+  const accountOptions = useMemo(() => {
+    const accountMap = new Map()
+
+    transactionRows.forEach((transaction) => {
+      const accountType = transaction.type || transaction.accountType
+      const accountNumber = transaction.accountNumber
+      const accountValue = accountNumber || accountType
+
+      if (!accountValue || accountMap.has(accountValue)) {
+        return
+      }
+
+      accountMap.set(accountValue, {
+        label: accountNumber ? `${accountType} (${accountNumber})` : accountType,
+        value: accountValue,
+      })
+    })
+
+    return [{ label: allAccountsFilter, value: allAccountsFilter }, ...accountMap.values()]
+  }, [transactionRows])
 
   useEffect(() => {
     let isMounted = true
@@ -27,6 +41,9 @@ function Transactions() {
     const loadTransactions = async () => {
       try {
         setIsLoading(true)
+        setTransactionRows([])
+        setErrorMessage('')
+
         const transactions = await fetchTransactions()
 
         if (isMounted) {
@@ -53,12 +70,17 @@ function Transactions() {
   }, [])
 
   const filteredTransactions = transactionRows.filter((transaction) => {
-    const searchableText = Object.values(transaction).join(' ').toLowerCase()
+    const searchableText = Object.values(transaction)
+      .filter((value) => value || value === 0)
+      .join(' ')
+      .toLowerCase()
     const matchesSearch = searchableText.includes(searchTerm.toLowerCase())
     const matchesStatus =
       statusFilter === 'All' || transaction.status === statusFilter
     const matchesAccount =
-      accountFilter === 'All accounts' || transaction.type === accountFilter
+      accountFilter === allAccountsFilter ||
+      transaction.accountNumber === accountFilter ||
+      transaction.type === accountFilter
 
     return matchesSearch && matchesStatus && matchesAccount
   })
@@ -148,7 +170,7 @@ function Transactions() {
             </thead>
             <tbody>
               {paginatedTransactions.map((transaction) => (
-                <tr key={transaction.id}>
+                <tr key={transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
                   <td>{transaction.id}</td>
                   <td>{transaction.date}</td>
                   <td>{transaction.receiverName}</td>
@@ -156,13 +178,13 @@ function Transactions() {
                   <td className={transaction.tone === 'credit' ? 'credit-text' : 'debit-text'}>
                     {transaction.amount}
                   </td>
-                  <td>{transaction.type}</td>
+                  <td>{transaction.type || '-'}</td>
                   <td>
-                    <span className={`transaction-status ${transaction.status.toLowerCase()}`}>
-                      {transaction.status}
+                    <span className={`transaction-status ${(transaction.status || '').toLowerCase()}`}>
+                      {transaction.status || '-'}
                     </span>
                   </td>
-                  <td>{transaction.remarks}</td>
+                  <td>{transaction.remarks || '-'}</td>
                 </tr>
               ))}
               {!isLoading && paginatedTransactions.length === 0 && (

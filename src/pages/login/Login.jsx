@@ -1,12 +1,33 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import httpClient from '../../api/httpClient'
+import {
+  clearStoredCurrentUser,
+  getUserIdFromData,
+  getUserIdFromToken,
+  storeCurrentUser,
+  storeUserId,
+} from '../../api/currentUser'
 import './login.css'
 
 const initialForm = {
   email: '',
   password: '',
 }
+
+const getUsernameFromLoginResponse = (response) =>
+  response?.userName ||
+  response?.username ||
+  response?.name ||
+  response?.user?.userName ||
+  response?.user?.username ||
+  response?.user?.name ||
+  response?.data?.userName ||
+  response?.data?.username ||
+  response?.data?.name ||
+  response?.data?.user?.userName ||
+  response?.data?.user?.username ||
+  response?.data?.user?.name
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -68,9 +89,32 @@ function LoginPage() {
       }
       const response = await httpClient.post('/api/auth/login', payload)
       const token = response?.token || response?.accessToken || response?.data?.token
+      const username = getUsernameFromLoginResponse(response)
+      const responseUserId = getUserIdFromData(response)
+      const userId =
+        responseUserId || responseUserId === 0 ? responseUserId : getUserIdFromToken(token)
 
       if (token) {
         localStorage.setItem('authToken', token)
+      }
+
+      if (userId || userId === 0) {
+        storeUserId(userId)
+      } else {
+        clearStoredCurrentUser()
+      }
+
+      if (username) {
+        storeCurrentUser({
+          ...response,
+          userId,
+          userName: username,
+        })
+      } else {
+        storeCurrentUser({
+          ...response,
+          userId,
+        })
       }
 
       setStatusMessage('Login successful. Redirecting to your dashboard...')

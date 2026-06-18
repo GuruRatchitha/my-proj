@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { clearStoredCurrentUser, getStoredCurrentUser } from '../api/currentUser'
 import '../pages/dashboard/Dashboard.css'
 
 function BankLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const isTransactionsScreen = location.pathname === '/transactions'
+  const currentUser = getStoredCurrentUser()
+  const profileName = currentUser?.userName || localStorage.getItem('username') || 'Account holder'
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentForm, setPaymentForm] = useState({
     name: '',
@@ -16,6 +19,7 @@ function BankLayout() {
 
   const handleLogout = () => {
     localStorage.removeItem('authToken')
+    clearStoredCurrentUser()
     navigate('/')
   }
 
@@ -68,9 +72,9 @@ function BankLayout() {
 
         <div className="profile-card">
           <NavLink className="profile-hit-area" to="/profile">
-            <span className="avatar">A</span>
+            <span className="avatar">{profileName.charAt(0).toUpperCase()}</span>
             <span className="profile-link">
-              <strong>Ava Thompson</strong>
+              <strong>{profileName}</strong>
               <small>Personal</small>
             </span>
           </NavLink>
@@ -84,15 +88,15 @@ function BankLayout() {
         <header className="topbar">
           <div className="welcome">
             <span>Welcome back</span>
-            <NavLink to="/profile">Ava Thompson</NavLink>
+            <NavLink to="/profile">{profileName}</NavLink>
           </div>
           <div className="topbar-actions">
-            {isTransactionsScreen && (
+            {/* {isTransactionsScreen && (
               <button className="add-payment" type="button" onClick={() => setIsPaymentModalOpen(true)}>
                 <i className="bi bi-plus-lg" aria-hidden="true"></i>
                 <span>Add Payment</span>
               </button>
-            )}
+            )} */}
           </div>
         </header>
 

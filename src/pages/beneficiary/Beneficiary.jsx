@@ -16,6 +16,7 @@ const savedBeneficiaries = [
     routingNumber: '021000021',
     bankName: 'Chase Bank',
     amount: '$2,450.00',
+    status: 'Inactive',
   },
   {
     id: 'BEN-1002',
@@ -24,6 +25,7 @@ const savedBeneficiaries = [
     routingNumber: '026009593',
     bankName: 'Bank of America',
     amount: '$1,275.50',
+    status: 'Inactive',
   },
   {
     id: 'BEN-1003',
@@ -32,6 +34,7 @@ const savedBeneficiaries = [
     routingNumber: '111000025',
     bankName: 'Wells Fargo',
     amount: '$3,800.00',
+    status: 'Inactive',
   },
   {
     id: 'BEN-1004',
@@ -40,11 +43,20 @@ const savedBeneficiaries = [
     routingNumber: '122105278',
     bankName: 'Citibank',
     amount: '$940.25',
+    status: 'Inactive',
   },
 ]
 
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+})
+
+const isApprovedStatus = (status = '') => status.toLowerCase() === 'approved'
+
 function Beneficiary() {
   const [formValues, setFormValues] = useState(initialFormValues)
+  const [beneficiaries, setBeneficiaries] = useState(savedBeneficiaries)
   const [paymentMessage, setPaymentMessage] = useState('')
 
   const handleInputChange = (event) => {
@@ -59,10 +71,26 @@ function Beneficiary() {
   const handleSaveBeneficiary = (event) => {
     event.preventDefault()
     setPaymentMessage('')
+    setBeneficiaries((currentBeneficiaries) => [
+      {
+        id: `BEN-${Date.now()}`,
+        beneficiaryName: formValues.beneficiaryName.trim(),
+        accountNumber: formValues.accountNumber.trim(),
+        routingNumber: formValues.routingNumber.trim(),
+        bankName: formValues.bankName.trim(),
+        amount: currencyFormatter.format(Number(formValues.amount || 0)),
+        status: 'Inactive',
+      },
+      ...currentBeneficiaries,
+    ])
     setFormValues(initialFormValues)
   }
 
-  const handleMakePayment = () => {
+  const handleMakePayment = (beneficiary) => {
+    if (!isApprovedStatus(beneficiary.status)) {
+      return
+    }
+
     setPaymentMessage('Payment initiated successfully')
   }
 
@@ -163,10 +191,10 @@ function Beneficiary() {
               <i className="bi bi-bookmark-check" aria-hidden="true"></i>
               Save Beneficiary
             </button>
-            <button className="profile-action-button secondary-action" type="button" onClick={handleMakePayment}>
+            {/* <button className="profile-action-button secondary-action" type="button" onClick={handleMakePayment}>
               <i className="bi bi-send-check" aria-hidden="true"></i>
               Make Payment
-            </button>
+            </button> */}
           </div>
         </form>
       </section>
@@ -193,29 +221,40 @@ function Beneficiary() {
               </tr>
             </thead>
             <tbody>
-              {savedBeneficiaries.map((beneficiary) => (
-                <tr key={beneficiary.id}>
-                  <td>
-                    <span className="beneficiary-name-cell">
-                      <i className="bi bi-person-circle" aria-hidden="true"></i>
-                      {beneficiary.beneficiaryName}
-                    </span>
-                  </td>
-                  <td>{beneficiary.accountNumber}</td>
-                  <td>{beneficiary.routingNumber}</td>
-                  <td>{beneficiary.bankName}</td>
-                  <td className="credit-text">{beneficiary.amount}</td>
-                  <td>
-                    <span className="badge beneficiary-status-badge">Active</span>
-                  </td>
-                  <td>
-                    <button className="table-payment-button" type="button" onClick={handleMakePayment}>
-                      <i className="bi bi-send" aria-hidden="true"></i>
-                      Make Payment
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {beneficiaries.map((beneficiary) => {
+                const isApproved = isApprovedStatus(beneficiary.status)
+
+                return (
+                  <tr key={beneficiary.id}>
+                    <td>
+                      <span className="beneficiary-name-cell">
+                        <i className="bi bi-person-circle" aria-hidden="true"></i>
+                        {beneficiary.beneficiaryName}
+                      </span>
+                    </td>
+                    <td>{beneficiary.accountNumber}</td>
+                    <td>{beneficiary.routingNumber}</td>
+                    <td>{beneficiary.bankName}</td>
+                    <td className="credit-text">{beneficiary.amount}</td>
+                    <td>
+                      <span className={`badge beneficiary-status-badge ${beneficiary.status.toLowerCase()}`}>
+                        {beneficiary.status}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="table-payment-button"
+                        type="button"
+                        onClick={() => handleMakePayment(beneficiary)}
+                        disabled={!isApproved}
+                      >
+                        <i className="bi bi-send" aria-hidden="true"></i>
+                        Make Payment
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import httpClient from '../../api/httpClient'
+import { getUserIdFromData, storeCurrentUser, storeUserId } from '../../api/currentUser'
 
 const PROFILE_ENDPOINT = '/api/users/profile'
 const PASSWORD_MASK = '********'
@@ -84,7 +85,6 @@ const buildProfilePayload = (profile) => {
 
 function Profile() {
   const [profile, setProfile] = useState(emptyProfile)
-  const [lastSavedProfile, setLastSavedProfile] = useState(emptyProfile)
   const [statusMessage, setStatusMessage] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -101,8 +101,12 @@ function Profile() {
         const nextProfile = mapApiProfileToForm(response)
 
         if (isMounted) {
+          storeUserId(getUserIdFromData(response))
+          storeCurrentUser({
+            ...response,
+            userName: response.username || response.userName,
+          })
           setProfile(nextProfile)
-          setLastSavedProfile(nextProfile)
         }
       } catch (error) {
         if (isMounted) {
@@ -141,19 +145,18 @@ function Profile() {
       const response = await httpClient.put(PROFILE_ENDPOINT, buildProfilePayload(profile))
       const nextProfile = mapApiProfileToForm(response)
 
+      storeUserId(getUserIdFromData(response))
+      storeCurrentUser({
+        ...response,
+        userName: nextProfile.username || nextProfile.email,
+      })
       setProfile(nextProfile)
-      setLastSavedProfile(nextProfile)
       alert('Profile changes saved successfully.')
     } catch (error) {
       setStatusMessage(error.message || 'Unable to save profile changes.')
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const handleReset = () => {
-    setProfile(lastSavedProfile)
-    setStatusMessage('')
   }
 
   return (

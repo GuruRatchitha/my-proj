@@ -888,6 +888,16 @@
   font-weight: 900;
 }
 
+.beneficiary-status-badge.inactive {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.beneficiary-status-badge.approved {
+  background: #e6f7ee;
+  color: #219a5f;
+}
+
 .table-payment-button {
   min-height: 32px;
   display: inline-flex;
@@ -904,9 +914,22 @@
   box-shadow: 0 8px 16px rgba(23, 99, 199, 0.18);
 }
 
+.table-payment-button:disabled {
+  cursor: not-allowed;
+  background: #d8e1ed;
+  color: #6b7788;
+  box-shadow: none;
+  opacity: 0.72;
+}
+
 .table-payment-button:hover {
   background: linear-gradient(135deg, #104f9f, #1f73df);
   transform: translateY(-1px);
+}
+
+.table-payment-button:disabled:hover {
+  background: #d8e1ed;
+  transform: none;
 }
 
 .form-grid {

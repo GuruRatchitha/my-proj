@@ -1,176 +1,47 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { fetchTransactions } from '../../api/transactions'
 
 const rowsPerPage = 10
-
-const transactionRows = [
-  {
-    id: 'TXN-10293',
-    date: 'Jun 16, 2026',
-    receiverName: 'Stripe Payouts',
-    accountNumber: 'AC-9921',
-    amount: '+₹4,250.00',
-    type: 'Credit',
-    status: 'Completed',
-    remarks: 'ACH settlement',
-  },
-  {
-    id: 'TXN-10292',
-    date: 'Jun 15, 2026',
-    receiverName: 'Amazon AWS',
-    accountNumber: 'AC-8412',
-    amount: '-₹812.40',
-    type: 'Debit',
-    status: 'Completed',
-    remarks: 'Cloud services',
-  },
-  {
-    id: 'TXN-10291',
-    date: 'Jun 14, 2026',
-    receiverName: 'Vanguard Index Fund',
-    accountNumber: 'AC-7305',
-    amount: '-₹10,000.00',
-    type: 'Debit',
-    status: 'Pending',
-    remarks: 'Wire transfer review',
-  },
-  {
-    id: 'TXN-10290',
-    date: 'Jun 12, 2026',
-    receiverName: 'Shopify Capital',
-    accountNumber: 'AC-9921',
-    amount: '+₹2,180.60',
-    type: 'Credit',
-    status: 'Completed',
-    remarks: 'Merchant deposit',
-  },
-  {
-    id: 'TXN-10289',
-    date: 'Jun 10, 2026',
-    receiverName: 'Payroll Batch',
-    accountNumber: 'AC-8412',
-    amount: '-₹6,420.00',
-    type: 'Debit',
-    status: 'Failed',
-    remarks: 'Insufficient approval',
-  },
-  {
-    id: 'TXN-10288',
-    date: 'Jun 08, 2026',
-    receiverName: 'Internal Savings',
-    accountNumber: 'AC-9921',
-    amount: '-₹1,500.00',
-    type: 'Transfer',
-    status: 'Completed',
-    remarks: 'Monthly savings move',
-  },
-  {
-    id: 'TXN-10287',
-    date: 'Jun 07, 2026',
-    receiverName: 'Rent Payment',
-    accountNumber: 'AC-8412',
-    amount: '-₹32,000.00',
-    type: 'Debit',
-    status: 'Completed',
-    remarks: 'Apartment rent',
-  },
-  {
-    id: 'TXN-10286',
-    date: 'Jun 05, 2026',
-    receiverName: 'Salary Credit',
-    accountNumber: 'AC-6218',
-    amount: '+₹86,340.20',
-    type: 'Credit',
-    status: 'Completed',
-    remarks: 'Monthly salary',
-  },
-  {
-    id: 'TXN-10285',
-    date: 'Jun 04, 2026',
-    receiverName: 'Utility Board',
-    accountNumber: 'AC-8412',
-    amount: '-₹3,420.00',
-    type: 'Debit',
-    status: 'Completed',
-    remarks: 'Electricity bill',
-  },
-  {
-    id: 'TXN-10284',
-    date: 'Jun 03, 2026',
-    receiverName: 'Mutual Fund SIP',
-    accountNumber: 'AC-7305',
-    amount: '-₹15,000.00',
-    type: 'Debit',
-    status: 'Pending',
-    remarks: 'Scheduled investment',
-  },
-  {
-    id: 'TXN-10283',
-    date: 'Jun 02, 2026',
-    receiverName: 'Insurance Premium',
-    accountNumber: 'AC-8412',
-    amount: '-₹9,800.00',
-    type: 'Debit',
-    status: 'Completed',
-    remarks: 'Policy renewal',
-  },
-  {
-    id: 'TXN-10282',
-    date: 'May 31, 2026',
-    receiverName: 'Card Cashback',
-    accountNumber: 'AC-9921',
-    amount: '+₹1,240.00',
-    type: 'Credit',
-    status: 'Completed',
-    remarks: 'Reward credit',
-  },
-  {
-    id: 'TXN-10281',
-    date: 'May 29, 2026',
-    receiverName: 'Travel Booking',
-    accountNumber: 'AC-8412',
-    amount: '-₹18,650.00',
-    type: 'Debit',
-    status: 'Failed',
-    remarks: 'Gateway timeout',
-  },
-  {
-    id: 'TXN-10280',
-    date: 'May 28, 2026',
-    receiverName: 'Fixed Deposit',
-    accountNumber: 'AC-5190',
-    amount: '-₹50,000.00',
-    type: 'Transfer',
-    status: 'Completed',
-    remarks: 'Deposit booking',
-  },
-  {
-    id: 'TXN-10279',
-    date: 'May 26, 2026',
-    receiverName: 'Medical Store',
-    accountNumber: 'AC-8412',
-    amount: '-₹2,310.00',
-    type: 'Debit',
-    status: 'Completed',
-    remarks: 'Card payment',
-  },
-  {
-    id: 'TXN-10278',
-    date: 'May 24, 2026',
-    receiverName: 'Freelance Invoice',
-    accountNumber: 'AC-9921',
-    amount: '+₹22,500.00',
-    type: 'Credit',
-    status: 'Pending',
-    remarks: 'Client transfer',
-  },
-]
-
 const statusOptions = ['All', 'Completed', 'Pending', 'Failed']
 
 function Transactions() {
+  const [transactionRows, setTransactionRows] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTransactions = async () => {
+      try {
+        setIsLoading(true)
+        const transactions = await fetchTransactions()
+
+        if (isMounted) {
+          setTransactionRows(transactions)
+          setErrorMessage('')
+        }
+      } catch (error) {
+        if (isMounted) {
+          setTransactionRows([])
+          setErrorMessage(error.message || 'Unable to load transactions.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadTransactions()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const filteredTransactions = transactionRows.filter((transaction) => {
     const searchableText = Object.values(transaction).join(' ').toLowerCase()
@@ -206,6 +77,9 @@ function Transactions() {
       </section>
 
       <section className="transactions-section compact-transactions-section">
+        {errorMessage && <p className="dashboard-state error">{errorMessage}</p>}
+        {isLoading && <p className="dashboard-state">Loading transactions...</p>}
+
         <div className="table-toolbar">
           <div className="search-control">
             <i className="bi bi-search" aria-hidden="true"></i>
@@ -251,7 +125,7 @@ function Transactions() {
                   <td>{transaction.date}</td>
                   <td>{transaction.receiverName}</td>
                   <td>{transaction.accountNumber}</td>
-                  <td className={transaction.type === 'Credit' ? 'credit-text' : 'debit-text'}>
+                  <td className={transaction.tone === 'credit' ? 'credit-text' : 'debit-text'}>
                     {transaction.amount}
                   </td>
                   <td>{transaction.type}</td>
@@ -263,7 +137,7 @@ function Transactions() {
                   <td>{transaction.remarks}</td>
                 </tr>
               ))}
-              {paginatedTransactions.length === 0 && (
+              {!isLoading && paginatedTransactions.length === 0 && (
                 <tr>
                   <td colSpan="8">No transactions found.</td>
                 </tr>

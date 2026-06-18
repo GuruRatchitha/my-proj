@@ -1,10 +1,45 @@
-import { useState } from 'react'
-import { accounts, summaryCards, transactions } from './dashboardData'
+import { useEffect, useState } from 'react'
+import { fetchTransactions } from '../../api/transactions'
+import { accounts, summaryCards, transactions as fallbackTransactions } from './dashboardData'
 
 function Dashboard() {
   const [showAllAccounts, setShowAllAccounts] = useState(false)
   const [isBalanceVisible, setIsBalanceVisible] = useState(true)
+  const [transactions, setTransactions] = useState([])
+  const [transactionsError, setTransactionsError] = useState('')
+  const [isTransactionsLoading, setIsTransactionsLoading] = useState(true)
   const visibleAccounts = showAllAccounts ? accounts : accounts.slice(0, 3)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTransactions = async () => {
+      try {
+        setIsTransactionsLoading(true)
+        const recentTransactions = await fetchTransactions(5)
+
+        if (isMounted) {
+          setTransactions(recentTransactions)
+          setTransactionsError('')
+        }
+      } catch (error) {
+        if (isMounted) {
+          setTransactions(fallbackTransactions)
+          setTransactionsError(error.message || 'Unable to load recent transactions.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsTransactionsLoading(false)
+        }
+      }
+    }
+
+    loadTransactions()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   return (
     <div className="dashboard-main">
@@ -75,18 +110,21 @@ function Dashboard() {
         <div className="section-heading transactions-heading">
           <div>
             <h2>Recent transactions</h2>
-            <p>6 total - 4 cleared</p>
+            <p>Latest 5 account activities</p>
           </div>
         </div>
 
+        {isTransactionsLoading && <p className="dashboard-state">Loading recent transactions...</p>}
+        {transactionsError && <p className="dashboard-state error">{transactionsError}</p>}
+
         <div className="transaction-list">
           {transactions.map((transaction) => (
-            <article className="transaction-row" key={transaction.name}>
+            <article className="transaction-row" key={transaction.id || transaction.name}>
               <span className={`transaction-icon ${transaction.tone}`}>
                 <i className={`bi bi-${transaction.icon}`} aria-hidden="true"></i>
               </span>
               <div className="transaction-name">
-                <strong>{transaction.name}</strong>
+                <strong>{transaction.receiverName || transaction.name}</strong>
                 <small>{transaction.detail}</small>
               </div>
               <span className="transaction-date">{transaction.date}</span>
@@ -98,6 +136,14 @@ function Dashboard() {
               </strong>
             </article>
           ))}
+          {!isTransactionsLoading && transactions.length === 0 && (
+            <article className="transaction-row">
+              <div className="transaction-name">
+                <strong>No recent transactions found.</strong>
+                <small>New activity will appear here.</small>
+              </div>
+            </article>
+          )}
         </div>
       </section>
     </div>

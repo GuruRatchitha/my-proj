@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react'
 import { fetchTransactions } from '../../api/transactions'
+import { accounts } from '../dashboard/dashboardData'
 
 const rowsPerPage = 10
 const statusOptions = ['All', 'Completed', 'Pending', 'Failed']
+const accountOptions = [
+  { label: 'All accounts', value: 'All accounts' },
+  ...accounts.map((account) => ({
+    label: `${account.type} (${account.id})`,
+    value: account.type,
+  })),
+]
 
 function Transactions() {
   const [transactionRows, setTransactionRows] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [accountFilter, setAccountFilter] = useState('All accounts')
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -48,8 +57,10 @@ function Transactions() {
     const matchesSearch = searchableText.includes(searchTerm.toLowerCase())
     const matchesStatus =
       statusFilter === 'All' || transaction.status === statusFilter
+    const matchesAccount =
+      accountFilter === 'All accounts' || transaction.type === accountFilter
 
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesStatus && matchesAccount
   })
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / rowsPerPage))
@@ -66,6 +77,11 @@ function Transactions() {
 
   const handleStatusChange = (event) => {
     setStatusFilter(event.target.value)
+    setCurrentPage(1)
+  }
+
+  const handleAccountChange = (event) => {
+    setAccountFilter(event.target.value)
     setCurrentPage(1)
   }
 
@@ -90,6 +106,18 @@ function Transactions() {
               onChange={handleSearchChange}
             />
           </div>
+          <select
+            className="filter-select"
+            value={accountFilter}
+            onChange={handleAccountChange}
+            aria-label="Filter by account"
+          >
+            {accountOptions.map((account) => (
+              <option key={account.value} value={account.value}>
+                {account.label}
+              </option>
+            ))}
+          </select>
           <select
             className="filter-select"
             value={statusFilter}

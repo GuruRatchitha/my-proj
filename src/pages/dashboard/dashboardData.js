@@ -41,16 +41,6 @@ export const accounts = [
     type: 'Investment',
     amount: '₹562,900.00',
   },
-  {
-    id: 'AC-6218',
-    type: 'Salary',
-    amount: '₹86,340.20',
-  },
-  {
-    id: 'AC-5190',
-    type: 'Fixed deposit',
-    amount: '₹310,000.00',
-  },
 ]
 
 export const transactions = [

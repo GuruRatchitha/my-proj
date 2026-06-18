@@ -59,7 +59,6 @@ const formatUserId = (value) => {
 
 const mapApiProfileToForm = (profile) => ({
   createdDate: formatDate(profile.createdDate),
-  
   userId: formatUserId(profile.userId),
   email: profile.email || '',
   aadharNumber: profile.aadharNumber || '',

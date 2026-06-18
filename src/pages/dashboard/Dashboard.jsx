@@ -2,13 +2,25 @@ import { useEffect, useState } from 'react'
 import { fetchTransactions } from '../../api/transactions'
 import { accounts, summaryCards, transactions as fallbackTransactions } from './dashboardData'
 
+const availableAccounts = accounts
+  .filter((account) => !['salary', 'fixed deposit'].includes(account.type.toLowerCase()))
+  .slice(0, 3)
+const accountSummaryDetail = availableAccounts.map((account) => account.type).join(' - ')
+const dashboardSummaryCards = summaryCards.map((card) =>
+  card.eyebrow === 'Accounts'
+    ? {
+        ...card,
+        value: String(availableAccounts.length),
+        detail: accountSummaryDetail,
+      }
+    : card,
+)
+
 function Dashboard() {
-  const [showAllAccounts, setShowAllAccounts] = useState(false)
   const [isBalanceVisible, setIsBalanceVisible] = useState(true)
   const [transactions, setTransactions] = useState([])
   const [transactionsError, setTransactionsError] = useState('')
   const [isTransactionsLoading, setIsTransactionsLoading] = useState(true)
-  const visibleAccounts = showAllAccounts ? accounts : accounts.slice(0, 3)
 
   useEffect(() => {
     let isMounted = true
@@ -49,7 +61,7 @@ function Dashboard() {
       </section>
 
       <section className="summary-grid" aria-label="Account summary">
-        {summaryCards.map((card) => (
+        {dashboardSummaryCards.map((card) => (
           <article
             className={`summary-card ${card.type === 'balance' ? 'balance-card' : ''}`}
             key={card.eyebrow}
@@ -86,17 +98,10 @@ function Dashboard() {
             <h2>Your accounts</h2>
             <p>Live view across your portfolio.</p>
           </div>
-          <button
-            className="section-link"
-            type="button"
-            onClick={() => setShowAllAccounts((currentValue) => !currentValue)}
-          >
-            {showAllAccounts ? 'Show less' : 'View all'}
-          </button>
         </div>
 
         <div className="accounts-grid" id="accounts">
-          {visibleAccounts.map((account) => (
+          {availableAccounts.map((account) => (
             <article className="account-card" key={account.id}>
               <span className="account-id">{account.id}</span>
               <span className="account-pill">{account.type}</span>

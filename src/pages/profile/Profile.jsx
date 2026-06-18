@@ -17,21 +17,19 @@ const emptyProfile = {
   username: '',
 }
 
-const readonlyFields = ['createdDate', 'roleId', 'userId', 'email']
+const readonlyFields = ['userId','createdDate', 'email','password']
 
 const editableFields = [
+  'username',
   'aadharNumber',
   'address',
-  'panCardNumber',
-  'password',
   'phoneNumber',
-  'username',
+  'panCardNumber',
 ]
 
 const fieldLabels = {
-  createdDate: 'Created date',
-  roleId: 'Role ID',
   userId: 'User ID',
+  createdDate: 'Created date',
   email: 'Email',
   aadharNumber: 'Aadhar number',
   address: 'Address',
@@ -51,17 +49,17 @@ const formatUserId = (value) => {
   return `USER-${String(value).padStart(3, '0')}`
 }
 
-const formatRoleId = (value) => {
-  if (!value && value !== 0) {
-    return ''
-  }
+// const formatRoleId = (value) => {
+//   if (!value && value !== 0) {
+//     return ''
+//   }
 
-  return Number(value) === 1 ? 'ROLE-ADMIN' : `ROLE-${value}`
-}
+//   return Number(value) === 1 ? 'ROLE-ADMIN' : `ROLE-${value}`
+// }
 
 const mapApiProfileToForm = (profile) => ({
   createdDate: formatDate(profile.createdDate),
-  roleId: formatRoleId(profile.roleId),
+  
   userId: formatUserId(profile.userId),
   email: profile.email || '',
   aadharNumber: profile.aadharNumber || '',
@@ -174,7 +172,7 @@ function Profile() {
         </div>
         <div className="profile-summary-meta">
           <span>{profile.userId || 'USER'}</span>
-          <span>{profile.roleId || 'ROLE'}</span>
+          {/* <span>{profile.roleId || 'ROLE'}</span> */}
         </div>
       </section>
 

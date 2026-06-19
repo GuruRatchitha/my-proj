@@ -32,6 +32,14 @@ const normalizeStatus = (status) => {
     return 'Active'
   }
 
+  if (normalizedStatus === 'pending') {
+    return 'Pending'
+  }
+
+  if (normalizedStatus === 'rejected') {
+    return 'Rejected'
+  }
+
   return 'Inactive'
 }
 
@@ -60,6 +68,7 @@ const normalizeBeneficiary = (beneficiary, index = 0) => {
     townName: beneficiary.townName || '',
     status,
     createdDate: formatCreatedDate(createdDate),
+    statusClass: status.toLowerCase(),
     isPaymentEnabled: status === 'Active',
   }
 }
@@ -320,9 +329,7 @@ function Beneficiary() {
                   <td>{beneficiary.townName}</td>
                   <td>
                     <span
-                      className={`beneficiary-status-badge ${
-                        beneficiary.isPaymentEnabled ? 'approved' : 'inactive'
-                      }`}
+                      className={`beneficiary-status-badge ${beneficiary.statusClass}`}
                     >
                       {beneficiary.status}
                     </span>

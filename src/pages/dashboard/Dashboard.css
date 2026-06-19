@@ -898,6 +898,11 @@
   color: #219a5f;
 }
 
+.beneficiary-status-badge.pending {
+  background: #fff3d8;
+  color: #9a6a1f;
+}
+
 .table-payment-button {
   min-height: 32px;
   display: inline-flex;

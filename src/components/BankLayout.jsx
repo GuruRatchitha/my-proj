@@ -7,6 +7,34 @@ function BankLayout() {
   const navigate = useNavigate()
   const currentUser = getStoredCurrentUser()
   const profileName = currentUser?.userName || localStorage.getItem('username') || 'Account holder'
+  const roleName = currentUser?.roleName || localStorage.getItem('roleName') || ''
+  const profilePath = roleName === 'EMPLOYEE' ? '/employee/profile' : '/customer/profile'
+  const navItems =
+    roleName === 'EMPLOYEE'
+      ? [
+        {
+          to: '/employee/dashboard',
+          icon: 'bi bi-grid-1x2',
+          label: 'Dashboard',
+        },
+      ]
+      : [
+        {
+          to: '/customer/dashboard',
+          icon: 'bi bi-grid-1x2',
+          label: 'Dashboard',
+        },
+        {
+          to: '/customer/transactions',
+          icon: 'bi bi-arrow-left-right',
+          label: 'Transactions',
+        },
+        {
+          to: '/customer/beneficiary',
+          icon: 'bi bi-person-lines-fill',
+          label: 'Beneficiary',
+        },
+      ]
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentForm, setPaymentForm] = useState({
     name: '',
@@ -18,7 +46,7 @@ function BankLayout() {
   const handleLogout = () => {
     localStorage.removeItem('authToken')
     clearStoredCurrentUser()
-    navigate('/')
+    navigate('/login')
   }
 
   const handlePaymentChange = (event) => {
@@ -54,26 +82,20 @@ function BankLayout() {
 
         <nav className="workspace-nav" aria-label="Workspace">
           <span className="nav-label">Workspace</span>
-          <NavLink className="sidebar-link" to="/dashboard">
-            <i className="bi bi-grid-1x2" aria-hidden="true"></i>
-            <span>Dashboard</span>
-          </NavLink>
-          <NavLink className="sidebar-link" to="/transactions">
-            <i className="bi bi-arrow-left-right" aria-hidden="true"></i>
-            <span>Transactions</span>
-          </NavLink>
-          <NavLink className="sidebar-link" to="/beneficiary">
-            <i className="bi bi-person-lines-fill" aria-hidden="true"></i>
-            <span>Beneficiary</span>
-          </NavLink>
+          {navItems.map((item) => (
+            <NavLink className="sidebar-link" to={item.to} key={item.to}>
+              <i className={item.icon} aria-hidden="true"></i>
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
         </nav>
 
         <div className="profile-card">
-          <NavLink className="profile-hit-area" to="/profile">
+          <NavLink className="profile-hit-area" to={profilePath}>
             <span className="avatar">{profileName.charAt(0).toUpperCase()}</span>
             <span className="profile-link">
               <strong>{profileName}</strong>
-              <small>Personal</small>
+              <small>{roleName === 'EMPLOYEE' ? 'Employee' : 'Personal'}</small>
             </span>
           </NavLink>
           <button className="sidebar-action" type="button" aria-label="Sign out" onClick={handleLogout}>
@@ -86,7 +108,7 @@ function BankLayout() {
         <header className="topbar">
           <div className="welcome">
             <span>Welcome back</span>
-            <NavLink to="/profile">{profileName}</NavLink>
+            <NavLink to={profilePath}>{profileName}</NavLink>
           </div>
           <div className="topbar-actions">
             {/* {isTransactionsScreen && (

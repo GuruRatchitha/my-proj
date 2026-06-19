@@ -29,6 +29,13 @@ const getUsernameFromLoginResponse = (response) =>
   response?.data?.user?.username ||
   response?.data?.user?.name
 
+const getRoleNameFromLoginResponse = (response) =>
+  response?.roleName ||
+  response?.user?.roleName ||
+  response?.data?.roleName ||
+  response?.data?.user?.roleName ||
+  ''
+
 function LoginPage() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState(initialForm)
@@ -90,6 +97,7 @@ function LoginPage() {
       const response = await httpClient.post('/api/auth/login', payload)
       const token = response?.token || response?.accessToken || response?.data?.token
       const username = getUsernameFromLoginResponse(response)
+      const roleName = getRoleNameFromLoginResponse(response)
       const responseUserId = getUserIdFromData(response)
       const userId =
         responseUserId || responseUserId === 0 ? responseUserId : getUserIdFromToken(token)
@@ -119,7 +127,13 @@ function LoginPage() {
 
       setStatusMessage('Login successful. Redirecting to your dashboard...')
       if (response?.message === "Login successful") {
-        navigate('/dashboard')
+        if (roleName === 'EMPLOYEE') {
+          navigate('/employee/dashboard')
+        } else if (roleName === 'CUSTOMER') {
+          navigate('/customer/dashboard')
+        } else {
+          alert("Unable to Login")
+        }
       } else {
         alert("Unable to Login")
       }

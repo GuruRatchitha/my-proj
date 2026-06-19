@@ -1,97 +1,163 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createBeneficiary, fetchBeneficiaries } from '../../api/beneficiaries'
 
-const initialFormValues = {
-  beneficiaryName: '',
-  accountNumber: '',
-  routingNumber: '',
-  bankName: '',
-  amount: '',
-}
+const COUNTRY_CODE = 'US'
 
-const savedBeneficiaries = [
-  {
-    id: 'BEN-1001',
-    beneficiaryName: 'Olivia Martin',
-    accountNumber: '7845 2190 6631',
-    routingNumber: '021000021',
-    bankName: 'Chase Bank',
-    amount: '$2,450.00',
-    status: 'Inactive',
-  },
-  {
-    id: 'BEN-1002',
-    beneficiaryName: 'Noah Williams',
-    accountNumber: '6910 4472 1185',
-    routingNumber: '026009593',
-    bankName: 'Bank of America',
-    amount: '$1,275.50',
-    status: 'Inactive',
-  },
-  {
-    id: 'BEN-1003',
-    beneficiaryName: 'Sophia Carter',
-    accountNumber: '5528 9041 3376',
-    routingNumber: '111000025',
-    bankName: 'Wells Fargo',
-    amount: '$3,800.00',
-    status: 'Inactive',
-  },
-  {
-    id: 'BEN-1004',
-    beneficiaryName: 'Liam Thompson',
-    accountNumber: '4387 1209 7754',
-    routingNumber: '122105278',
-    bankName: 'Citibank',
-    amount: '$940.25',
-    status: 'Inactive',
-  },
-]
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
+const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: '2-digit',
+  year: 'numeric',
 })
 
-const isApprovedStatus = (status = '') => status.toLowerCase() === 'approved'
+const initialFormValues = {
+  accountNumber: '',
+  routingNumber: '',
+  beneficiaryName: '',
+  townName: '',
+}
+
+const formatCreatedDate = (createdDate) => {
+  if (!createdDate) {
+    return '-'
+  }
+
+  const date = new Date(createdDate)
+  return Number.isNaN(date.getTime()) ? '-' : dateFormatter.format(date)
+}
+
+const normalizeStatus = (status) => {
+  const normalizedStatus = (status || '').toString().trim().toLowerCase()
+
+  if (['active', 'approved'].includes(normalizedStatus)) {
+    return 'Active'
+  }
+
+  return 'Inactive'
+}
+
+const normalizeBeneficiary = (beneficiary, index = 0) => {
+  const createdDate =
+    beneficiary.createdDate ||
+    beneficiary.createdAt ||
+    beneficiary.createdOn ||
+    beneficiary.creationDate
+  const status = normalizeStatus(
+    beneficiary.status ||
+      beneficiary.beneficiaryStatus ||
+      beneficiary.approvalStatus ||
+      beneficiary.approvedStatus,
+  )
+
+  return {
+    id:
+      beneficiary.id ||
+      beneficiary.beneficiaryId ||
+      `${beneficiary.accountNumber || 'BEN'}-${beneficiary.routingNumber || index}`,
+    accountNumber: beneficiary.accountNumber || '',
+    routingNumber: beneficiary.routingNumber || '',
+    beneficiaryName: beneficiary.beneficiaryName || '',
+    countryCode: beneficiary.countryCode || COUNTRY_CODE,
+    townName: beneficiary.townName || '',
+    status,
+    createdDate: formatCreatedDate(createdDate),
+    isPaymentEnabled: status === 'Active',
+  }
+}
 
 function Beneficiary() {
   const [formValues, setFormValues] = useState(initialFormValues)
-  const [beneficiaries, setBeneficiaries] = useState(savedBeneficiaries)
-  const [paymentMessage, setPaymentMessage] = useState('')
+  const [beneficiaries, setBeneficiaries] = useState([])
+  const [saveMessage, setSaveMessage] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingBeneficiaries, setIsLoadingBeneficiaries] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadBeneficiaries = async () => {
+      try {
+        setIsLoadingBeneficiaries(true)
+        setLoadError('')
+
+        const response = await fetchBeneficiaries()
+        const nextBeneficiaries = Array.isArray(response) ? response : []
+
+        if (isMounted) {
+          setBeneficiaries(nextBeneficiaries.map(normalizeBeneficiary))
+        }
+      } catch (error) {
+        if (isMounted) {
+          setBeneficiaries([])
+          setLoadError(error.message || 'Unable to load beneficiaries.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingBeneficiaries(false)
+        }
+      }
+    }
+
+    loadBeneficiaries()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleInputChange = (event) => {
     const { name, value } = event.target
+    const normalizedValue = {
+      accountNumber: value.replace(/\D/g, '').slice(0, 11),
+      routingNumber: value.replace(/\D/g, '').slice(0, 9),
+      townName: value.replace(/[^a-zA-Z\s]/g, '').slice(0, 35),
+    }[name] ?? value
 
     setFormValues((currentValues) => ({
       ...currentValues,
-      [name]: value,
+      [name]: normalizedValue,
     }))
   }
 
-  const handleSaveBeneficiary = (event) => {
+  const handleSaveBeneficiary = async (event) => {
     event.preventDefault()
-    setPaymentMessage('')
-    setBeneficiaries((currentBeneficiaries) => [
-      {
-        id: `BEN-${Date.now()}`,
-        beneficiaryName: formValues.beneficiaryName.trim(),
-        accountNumber: formValues.accountNumber.trim(),
-        routingNumber: formValues.routingNumber.trim(),
-        bankName: formValues.bankName.trim(),
-        amount: currencyFormatter.format(Number(formValues.amount || 0)),
-        status: 'Inactive',
-      },
-      ...currentBeneficiaries,
-    ])
-    setFormValues(initialFormValues)
+
+    setSaveMessage('')
+    setSaveError('')
+    setIsSaving(true)
+
+    const payload = {
+      beneficiaryName: formValues.beneficiaryName.trim(),
+      townName: formValues.townName.trim(),
+      countryCode: COUNTRY_CODE,
+      accountNumber: formValues.accountNumber.trim(),
+      routingNumber: formValues.routingNumber.trim(),
+    }
+
+    try {
+      const response = await createBeneficiary(payload)
+      const savedBeneficiary = response?.beneficiary || payload
+
+      setBeneficiaries((currentBeneficiaries) => [
+        normalizeBeneficiary(savedBeneficiary, Date.now()),
+        ...currentBeneficiaries,
+      ])
+      setFormValues(initialFormValues)
+      setSaveMessage(response?.message || 'Beneficiary saved successfully')
+    } catch (error) {
+      setSaveError(error.message || 'Unable to save beneficiary.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleMakePayment = (beneficiary) => {
-    if (!isApprovedStatus(beneficiary.status)) {
+    if (!beneficiary.isPaymentEnabled) {
       return
     }
 
-    setPaymentMessage('Payment initiated successfully')
+    alert(`Payment can be initiated for ${beneficiary.beneficiaryName}.`)
   }
 
   return (
@@ -103,7 +169,7 @@ function Beneficiary() {
             Secure Payments
           </span>
           <h1>Beneficiary Management</h1>
-          <p>Add beneficiary details and initiate payments.</p>
+          <p>Add verified beneficiary details for payment setup.</p>
         </div>
         <span className="beneficiary-hero-icon">
           <i className="bi bi-person-vcard" aria-hidden="true"></i>
@@ -114,14 +180,20 @@ function Beneficiary() {
         <div className="section-heading">
           <div>
             <h2>Beneficiary Details</h2>
-            <p>Enter verified account information for payment setup.</p>
+            <p>Enter the account and location information for this beneficiary.</p>
           </div>
         </div>
 
-        {paymentMessage && (
+        {saveMessage && (
           <div className="alert alert-success beneficiary-alert" role="alert">
             <i className="bi bi-check-circle-fill" aria-hidden="true"></i>
-            <span>{paymentMessage}</span>
+            <span>{saveMessage}</span>
+          </div>
+        )}
+        {saveError && (
+          <div className="alert alert-danger beneficiary-alert" role="alert">
+            <i className="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <span>{saveError}</span>
           </div>
         )}
 
@@ -144,42 +216,51 @@ function Beneficiary() {
                 className="form-control"
                 name="accountNumber"
                 type="text"
+                inputMode="numeric"
+                maxLength={11}
+                pattern="\d{11}"
+                title="Account number must be exactly 11 digits."
                 value={formValues.accountNumber}
                 onChange={handleInputChange}
                 required
               />
             </label>
             <label className="bank-field">
-              <span>ABA Routing Number</span>
+              <span>Routing Number</span>
               <input
                 className="form-control"
                 name="routingNumber"
                 type="text"
+                inputMode="numeric"
+                maxLength={9}
+                pattern="\d{9}"
+                title="Routing number must be exactly 9 digits."
                 value={formValues.routingNumber}
                 onChange={handleInputChange}
                 required
               />
             </label>
             <label className="bank-field">
-              <span>Bank Name</span>
+              <span>Country Code</span>
               <input
                 className="form-control"
-                name="bankName"
+                name="countryCode"
                 type="text"
-                value={formValues.bankName}
-                onChange={handleInputChange}
-                required
+                value={COUNTRY_CODE}
+                disabled
+                readOnly
               />
             </label>
             <label className="bank-field">
-              <span>Amount (USD)</span>
+              <span>Town Name</span>
               <input
                 className="form-control"
-                name="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formValues.amount}
+                name="townName"
+                type="text"
+                maxLength={35}
+                pattern="[A-Za-z\s]{1,35}"
+                title="Town name can contain only letters and spaces, up to 35 characters."
+                value={formValues.townName}
                 onChange={handleInputChange}
                 required
               />
@@ -187,14 +268,10 @@ function Beneficiary() {
           </div>
 
           <div className="form-actions">
-            <button className="profile-action-button primary-action" type="submit">
+            <button className="profile-action-button primary-action" type="submit" disabled={isSaving}>
               <i className="bi bi-bookmark-check" aria-hidden="true"></i>
-              Save Beneficiary
+              {isSaving ? 'Saving...' : 'Save Beneficiary'}
             </button>
-            {/* <button className="profile-action-button secondary-action" type="button" onClick={handleMakePayment}>
-              <i className="bi bi-send-check" aria-hidden="true"></i>
-              Make Payment
-            </button> */}
           </div>
         </form>
       </section>
@@ -203,58 +280,72 @@ function Beneficiary() {
         <div className="section-heading transactions-heading">
           <div>
             <h2>Saved Beneficiaries</h2>
-            <p>Active payment recipients ready for transfer.</p>
+            <p>Beneficiary records captured for transfer setup.</p>
           </div>
         </div>
 
         <div className="transaction-table-wrap beneficiary-table-wrap">
+          {isLoadingBeneficiaries && (
+            <div className="section-loader" role="status" aria-live="polite">
+              <span className="section-loader-spinner" aria-hidden="true"></span>
+              <span>Loading beneficiaries...</span>
+            </div>
+          )}
+          {loadError && <p className="dashboard-state error">{loadError}</p>}
           <table className="table bank-table beneficiary-table mb-0">
             <thead>
               <tr>
-                <th>Beneficiary Name</th>
                 <th>Account Number</th>
-                <th>ABA Routing Number</th>
-                <th>Bank Name</th>
-                <th>Amount</th>
+                <th>Routing Number</th>
+                <th>Beneficiary Name</th>
+                <th>Country Code</th>
+                <th>Town Name</th>
                 <th>Status</th>
-                <th>Action</th>
+                <th>Created Date</th>
+                <th>Payment</th>
               </tr>
             </thead>
             <tbody>
-              {beneficiaries.map((beneficiary) => {
-                const isApproved = isApprovedStatus(beneficiary.status)
-
-                return (
-                  <tr key={beneficiary.id}>
-                    <td>
-                      <span className="beneficiary-name-cell">
-                        <i className="bi bi-person-circle" aria-hidden="true"></i>
-                        {beneficiary.beneficiaryName}
-                      </span>
-                    </td>
-                    <td>{beneficiary.accountNumber}</td>
-                    <td>{beneficiary.routingNumber}</td>
-                    <td>{beneficiary.bankName}</td>
-                    <td className="credit-text">{beneficiary.amount}</td>
-                    <td>
-                      <span className={`badge beneficiary-status-badge ${beneficiary.status.toLowerCase()}`}>
-                        {beneficiary.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="table-payment-button"
-                        type="button"
-                        onClick={() => handleMakePayment(beneficiary)}
-                        disabled={!isApproved}
-                      >
-                        <i className="bi bi-send" aria-hidden="true"></i>
-                        Make Payment
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
+              {beneficiaries.map((beneficiary) => (
+                <tr key={beneficiary.id}>
+                  <td>{beneficiary.accountNumber}</td>
+                  <td>{beneficiary.routingNumber}</td>
+                  <td>
+                    <span className="beneficiary-name-cell">
+                      <i className="bi bi-person-circle" aria-hidden="true"></i>
+                      {beneficiary.beneficiaryName}
+                    </span>
+                  </td>
+                  <td>{beneficiary.countryCode}</td>
+                  <td>{beneficiary.townName}</td>
+                  <td>
+                    <span
+                      className={`beneficiary-status-badge ${
+                        beneficiary.isPaymentEnabled ? 'approved' : 'inactive'
+                      }`}
+                    >
+                      {beneficiary.status}
+                    </span>
+                  </td>
+                  <td>{beneficiary.createdDate}</td>
+                  <td>
+                    <button
+                      className="table-payment-button"
+                      type="button"
+                      disabled={!beneficiary.isPaymentEnabled}
+                      onClick={() => handleMakePayment(beneficiary)}
+                    >
+                      <i className="bi bi-send" aria-hidden="true"></i>
+                      Make Payment
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!isLoadingBeneficiaries && beneficiaries.length === 0 && (
+                <tr>
+                  <td colSpan="8">No beneficiaries found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

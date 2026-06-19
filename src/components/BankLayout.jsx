@@ -1,12 +1,10 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { clearStoredCurrentUser, getStoredCurrentUser } from '../api/currentUser'
 import '../pages/dashboard/Dashboard.css'
 
 function BankLayout() {
-  const location = useLocation()
   const navigate = useNavigate()
-  const isTransactionsScreen = location.pathname === '/transactions'
   const currentUser = getStoredCurrentUser()
   const profileName = currentUser?.userName || localStorage.getItem('username') || 'Account holder'
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)

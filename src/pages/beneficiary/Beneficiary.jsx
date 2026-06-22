@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createBeneficiary, fetchBeneficiaries } from '../../api/beneficiaries'
 
 const COUNTRY_CODE = 'US'
@@ -75,6 +76,7 @@ const normalizeBeneficiary = (beneficiary, index = 0) => {
 }
 
 function Beneficiary() {
+  const navigate = useNavigate()
   const [formValues, setFormValues] = useState(initialFormValues)
   const [beneficiaries, setBeneficiaries] = useState([])
   const [saveMessage, setSaveMessage] = useState('')
@@ -167,7 +169,11 @@ function Beneficiary() {
       return
     }
 
-    alert(`Payment can be initiated for ${beneficiary.beneficiaryName}.`)
+    navigate('/payment', {
+      state: {
+        beneficiary,
+      },
+    })
   }
 
   return (

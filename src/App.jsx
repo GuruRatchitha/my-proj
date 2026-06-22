@@ -10,6 +10,7 @@ import Customers from './pages/employee/Customers'
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
 import TransactionQueue from './pages/employee/TransactionQueue'
 import LoginPage from './pages/login/Login'
+import Payment from './pages/payment/Payment'
 import Profile from './pages/profile/Profile'
 import Transactions from './pages/transactions/Transactions'
 
@@ -26,6 +27,7 @@ function App() {
             <Route path="/customer/profile" element={<Profile />} />
             <Route path="/customer/transactions" element={<Transactions />} />
             <Route path="/customer/beneficiary" element={<Beneficiary />} />
+            <Route path="/payment" element={<Payment />} />
           </Route>
         </Route>
 

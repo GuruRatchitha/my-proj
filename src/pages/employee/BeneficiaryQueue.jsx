@@ -38,17 +38,24 @@ const normalizeQueueStatus = (status) => {
 
 const normalizeBeneficiaryRequest = (beneficiary, index = 0) => {
   const status = normalizeQueueStatus(beneficiary.status)
+  const customerName =
+    beneficiary.userName ||
+    beneficiary.customerName ||
+    beneficiary.customer?.userName ||
+    beneficiary.customer?.name ||
+    ''
 
   return {
     id: `${beneficiary.userId || 'USER'}-${beneficiary.accountNumber || index}-${beneficiary.routingNumber || index}`,
     userId: beneficiary.userId || '',
-    customerName: beneficiary.userName || beneficiary.customerName || `Customer ${beneficiary.userId || ''}`.trim(),
+    customerName,
     beneficiaryName: beneficiary.beneficiaryName || '',
     townName: beneficiary.townName || '',
     countryCode: beneficiary.countryCode || 'US',
     accountNumber: beneficiary.accountNumber || '',
     routingNumber: beneficiary.routingNumber || '',
     submittedAt: formatSubmittedDate(beneficiary.createdDate),
+    rejectionReason: beneficiary.rejectionReason || beneficiary.rejectReason || beneficiary.reason || '',
     status,
   }
 }
@@ -59,6 +66,8 @@ function BeneficiaryQueue() {
   const [queueError, setQueueError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [activeRequestId, setActiveRequestId] = useState('')
+  const [rejectRequest, setRejectRequest] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -94,15 +103,23 @@ function BeneficiaryQueue() {
   }, [])
 
   const updateRequestFromResponse = (request, response) => {
-    const updatedBeneficiary = normalizeBeneficiaryRequest(response?.beneficiary || request)
+    const updatedBeneficiary = response?.beneficiary || {}
+    const nextStatus = updatedBeneficiary.status
+      ? normalizeQueueStatus(updatedBeneficiary.status)
+      : request.status
+    const nextRejectionReason =
+      updatedBeneficiary.rejectionReason ||
+      updatedBeneficiary.rejectReason ||
+      updatedBeneficiary.reason ||
+      request.rejectionReason
 
     setBeneficiaryRequests((currentRequests) =>
       currentRequests.map((currentRequest) =>
         currentRequest.id === request.id
           ? {
             ...currentRequest,
-            ...updatedBeneficiary,
-            id: currentRequest.id,
+            status: nextStatus,
+            rejectionReason: nextRejectionReason,
           }
           : currentRequest,
       ),
@@ -120,6 +137,7 @@ function BeneficiaryQueue() {
         userId: request.userId,
         accountNumber: request.accountNumber,
         routingNumber: request.routingNumber,
+        reason: rejectionReason.trim(),
       }
       const response = action === 'approve'
         ? await approveBeneficiary(payload)
@@ -131,6 +149,28 @@ function BeneficiaryQueue() {
     } finally {
       setActiveRequestId('')
     }
+  }
+
+  const openRejectDialog = (request) => {
+    setRejectRequest(request)
+    setRejectionReason('')
+    setQueueError('')
+  }
+
+  const closeRejectDialog = () => {
+    setRejectRequest(null)
+    setRejectionReason('')
+  }
+
+  const handleRejectSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!rejectRequest || !rejectionReason.trim()) {
+      return
+    }
+
+    await handleReviewAction(rejectRequest, 'reject')
+    closeRejectDialog()
   }
 
   return (
@@ -192,7 +232,7 @@ function BeneficiaryQueue() {
                 <div className="employee-queue-grid">
                   <div className="employee-detail-block">
                     <span>Added by</span>
-                    <strong>{request.customerName}</strong>
+                    <strong>{request.customerName || 'Customer record'}</strong>
                     <small>User ID {request.userId}</small>
                   </div>
                   <div className="employee-detail-block">
@@ -213,7 +253,7 @@ function BeneficiaryQueue() {
                     className="profile-action-button secondary-action"
                     type="button"
                     disabled={!isPending || isActiveRequest}
-                    onClick={() => handleReviewAction(request, 'reject')}
+                    onClick={() => openRejectDialog(request)}
                   >
                     <i className="bi bi-x-circle" aria-hidden="true"></i>
                     {isActiveRequest ? 'Updating...' : 'Reject'}
@@ -233,6 +273,48 @@ function BeneficiaryQueue() {
           )
         })}
       </section>
+
+      {rejectRequest && (
+        <div className="payment-modal-backdrop" role="presentation">
+          <section className="payment-modal" role="dialog" aria-modal="true" aria-labelledby="reject-modal-title">
+            <header className="payment-modal-header">
+              <div>
+                <h2 id="reject-modal-title">Reject beneficiary</h2>
+                <p>Provide a reason customers can review on their beneficiary page.</p>
+              </div>
+              <button
+                className="modal-close-button"
+                type="button"
+                aria-label="Close reject beneficiary"
+                onClick={closeRejectDialog}
+              >
+                <i className="bi bi-x-lg" aria-hidden="true"></i>
+              </button>
+            </header>
+
+            <form className="employee-reject-form" onSubmit={handleRejectSubmit}>
+              <label className="bank-field">
+                <span>Reason</span>
+                <textarea
+                  className="form-control"
+                  value={rejectionReason}
+                  onChange={(event) => setRejectionReason(event.target.value)}
+                  maxLength={180}
+                  required
+                />
+              </label>
+              <div className="modal-actions">
+                <button className="profile-action-button secondary-action" type="button" onClick={closeRejectDialog}>
+                  Cancel
+                </button>
+                <button className="profile-action-button primary-action" type="submit" disabled={!rejectionReason.trim() || Boolean(activeRequestId)}>
+                  Reject
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

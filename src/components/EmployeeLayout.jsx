@@ -71,17 +71,9 @@ function EmployeeLayout() {
 
       <section className="dashboard-content">
         <header className="topbar employee-topbar">
-          <div className="employee-search search-control">
-            <i className="bi bi-search" aria-hidden="true"></i>
-            <input className="form-control" type="search" aria-label="Search customers, cases, accounts" />
-          </div>
           <div className="topbar-actions">
             <button className="icon-button" type="button" aria-label="Notifications">
               <i className="bi bi-bell" aria-hidden="true"></i>
-            </button>
-            <button className="add-payment" type="button">
-              <i className="bi bi-plus-lg" aria-hidden="true"></i>
-              <span>New Case</span>
             </button>
           </div>
         </header>

@@ -27,5 +27,8 @@ export const fetchPendingBeneficiaries = async () =>
 export const approveBeneficiary = async ({ userId, accountNumber, routingNumber }) =>
   httpClient.put(`/api/employee/beneficiaries/${userId}/${accountNumber}/${routingNumber}/approve`)
 
-export const rejectBeneficiary = async ({ userId, accountNumber, routingNumber }) =>
-  httpClient.put(`/api/employee/beneficiaries/${userId}/${accountNumber}/${routingNumber}/reject`)
+export const rejectBeneficiary = async ({ userId, accountNumber, routingNumber, reason }) =>
+  httpClient.put(`/api/employee/beneficiaries/${userId}/${accountNumber}/${routingNumber}/reject`, {
+    reason,
+    rejectionReason: reason,
+  })

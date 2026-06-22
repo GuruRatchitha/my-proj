@@ -1,5 +1,5 @@
 .employee-topbar {
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .employee-search {
@@ -96,6 +96,25 @@
   gap: 12px;
 }
 
+.employee-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.employee-reject-form {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.employee-reject-form textarea {
+  min-height: 112px;
+  padding: 12px 13px;
+  resize: vertical;
+}
+
 @media (max-width: 900px) {
   .employee-queue-grid {
     grid-template-columns: 1fr;
@@ -104,9 +123,15 @@
 
 @media (max-width: 560px) {
   .employee-search,
+  .employee-title-row,
   .employee-queue-actions,
   .employee-queue-actions .profile-action-button {
     width: 100%;
+  }
+
+  .employee-title-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .employee-queue-header {

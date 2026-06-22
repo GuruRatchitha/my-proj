@@ -68,7 +68,8 @@ const normalizeBeneficiary = (beneficiary, index = 0) => {
     townName: beneficiary.townName || '',
     status,
     createdDate: formatCreatedDate(createdDate),
-    statusClass: status.toLowerCase(),
+    rejectionReason: beneficiary.rejectionReason || beneficiary.rejectReason || beneficiary.reason || '',
+    statusClass: status === 'Active' ? 'approved' : status === 'Rejected' ? 'inactive' : status.toLowerCase(),
     isPaymentEnabled: status === 'Active',
   }
 }
@@ -310,6 +311,7 @@ function Beneficiary() {
                 <th>Country Code</th>
                 <th>Town Name</th>
                 <th>Status</th>
+                <th>Reason</th>
                 <th>Created Date</th>
                 <th>Payment</th>
               </tr>
@@ -334,6 +336,7 @@ function Beneficiary() {
                       {beneficiary.status}
                     </span>
                   </td>
+                  <td>{beneficiary.status === 'Rejected' ? beneficiary.rejectionReason || '-' : '-'}</td>
                   <td>{beneficiary.createdDate}</td>
                   <td>
                     <button
@@ -350,7 +353,7 @@ function Beneficiary() {
               ))}
               {!isLoadingBeneficiaries && beneficiaries.length === 0 && (
                 <tr>
-                  <td colSpan="8">No beneficiaries found.</td>
+                  <td colSpan="9">No beneficiaries found.</td>
                 </tr>
               )}
             </tbody>

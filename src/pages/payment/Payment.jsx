@@ -1,47 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { makePayment } from '../../api/payments'
-
-const formatDate = (date) => date.toISOString().slice(0, 10)
-
-const formatTime = (date) =>
-  date.toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
 
 const getBeneficiaryId = (beneficiary) =>
   beneficiary?.id ||
   beneficiary?.beneficiaryId ||
-  `${beneficiary?.accountNumber || 'BEN'}-${beneficiary?.routingNumber || 'ROUTE'}`
+  null
 
 function Payment() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const beneficiary = state?.beneficiary
 
-  const [paymentDate, setPaymentDate] = useState('')
-  const [paymentTime, setPaymentTime] = useState('')
   const [amount, setAmount] = useState('')
   const [isAmountTouched, setIsAmountTouched] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
-
-  useEffect(() => {
-    const updateCurrentDateTime = () => {
-      const now = new Date()
-      setPaymentDate(formatDate(now))
-      setPaymentTime(formatTime(now))
-    }
-
-    updateCurrentDateTime()
-    const timerId = window.setInterval(updateCurrentDateTime, 1000)
-
-    return () => window.clearInterval(timerId)
-  }, [])
+  const [paymentResult, setPaymentResult] = useState(null)
 
   const numericAmount = useMemo(() => Number(amount), [amount])
   const isAmountValid = amount.trim() !== '' && Number.isFinite(numericAmount) && numericAmount > 0
@@ -62,9 +38,18 @@ function Payment() {
     setIsAmountTouched(true)
     setSuccessMessage('')
     setErrorMessage('')
+    setPaymentResult(null)
 
     if (!beneficiary) {
       setErrorMessage('Beneficiary details are missing. Please select an active beneficiary again.')
+      return
+    }
+
+    const beneficiaryId = getBeneficiaryId(beneficiary)
+    const numericBeneficiaryId = Number(beneficiaryId)
+
+    if (!Number.isInteger(numericBeneficiaryId) || numericBeneficiaryId <= 0) {
+      setErrorMessage('Beneficiary ID is missing. Please select the beneficiary again after refreshing the list.')
       return
     }
 
@@ -73,21 +58,15 @@ function Payment() {
     }
 
     const payload = {
-      beneficiaryId: getBeneficiaryId(beneficiary),
-      beneficiaryName: beneficiary.beneficiaryName,
-      accountNumber: beneficiary.accountNumber,
-      routingNumber: beneficiary.routingNumber,
-      countryCode: beneficiary.countryCode,
-      townName: beneficiary.townName,
       amount: numericAmount,
-      paymentDate,
-      paymentTime,
+      beneficiaryId: numericBeneficiaryId,
     }
 
     try {
       setIsSubmitting(true)
       const response = await makePayment(payload)
-      setSuccessMessage(response?.message || 'Payment submitted successfully.')
+      setPaymentResult(response)
+      setSuccessMessage(response?.transactionStatus ? `Payment submitted. Status: ${response.transactionStatus}.` : 'Payment submitted successfully.')
       setAmount('')
       setIsAmountTouched(false)
     } catch (error) {
@@ -147,6 +126,42 @@ function Payment() {
             <i className="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
             <span>{errorMessage}</span>
           </div>
+        )}
+        {paymentResult && (
+          <section className="payment-info-card payment-result-card" aria-label="Payment confirmation">
+            <div className="section-heading">
+              <div>
+                <h2>Payment Confirmation</h2>
+                <p>Keep these references for tracking the transfer.</p>
+              </div>
+            </div>
+            <div className="form-grid">
+              <label className="bank-field">
+                <span>Transaction ID</span>
+                <input className="form-control payment-readonly-control" type="text" value={paymentResult.transactionId || ''} disabled readOnly />
+              </label>
+              <label className="bank-field">
+                <span>Transfer ID</span>
+                <input className="form-control payment-readonly-control" type="text" value={paymentResult.transferId || ''} disabled readOnly />
+              </label>
+              <label className="bank-field">
+                <span>Payment Transaction ID</span>
+                <input className="form-control payment-readonly-control" type="text" value={paymentResult.paymentTransactionId || ''} disabled readOnly />
+              </label>
+              <label className="bank-field">
+                <span>Bank Transaction ID</span>
+                <input className="form-control payment-readonly-control" type="text" value={paymentResult.bankTransactionId || ''} disabled readOnly />
+              </label>
+              <label className="bank-field">
+                <span>Status</span>
+                <input className="form-control payment-readonly-control" type="text" value={paymentResult.transactionStatus || ''} disabled readOnly />
+              </label>
+              <label className="bank-field">
+                <span>UETR</span>
+                <input className="form-control payment-readonly-control" type="text" value={paymentResult.uetr || ''} disabled readOnly />
+              </label>
+            </div>
+          </section>
         )}
 
         <div className="payment-card-grid">

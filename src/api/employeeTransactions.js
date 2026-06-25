@@ -257,21 +257,10 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
 }
 
 export const fetchEmployeeTransactions = async () => {
-  try {
-    const response = await httpClient.get('/api/employee/transactions')
-    const transactions = normalizeTransactionCollection(response)
+  const response = await httpClient.get('/api/employee/transactions')
+  const transactions = normalizeTransactionCollection(response)
 
-    if (transactions.length > 0) {
-      return transactions.map(normalizeEmployeeTransaction)
-    }
-  } catch {
-    // Fall through to the dashboard transaction feed below.
-  }
-
-  const fallbackResponse = await httpClient.get('/api/dashboard/transactions')
-  const fallbackTransactions = normalizeTransactionCollection(fallbackResponse)
-
-  return fallbackTransactions.map(normalizeEmployeeTransaction)
+  return transactions.map(normalizeEmployeeTransaction)
 }
 
 export const fetchEmployeeTransaction = async (transactionReference) => {

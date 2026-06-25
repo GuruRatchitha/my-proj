@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDashboardSummary, fetchTransactions } from '../../api/transactions'
+import { fetchDashboardSummary } from '../../api/transactions'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -47,10 +47,9 @@ const buildSummaryCards = (summary) => {
 
 function Dashboard() {
   const [isBalanceVisible, setIsBalanceVisible] = useState(true)
-  const [recentTransactions, setRecentTransactions] = useState([])
   const [dashboardSummary, setDashboardSummary] = useState(emptyDashboardSummary)
-  const [transactionsError, setTransactionsError] = useState('')
-  const [isTransactionsLoading, setIsTransactionsLoading] = useState(true)
+  const [dashboardError, setDashboardError] = useState('')
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true)
   const summaryCards = useMemo(
     () => buildSummaryCards(dashboardSummary),
     [dashboardSummary],
@@ -74,37 +73,31 @@ function Dashboard() {
   useEffect(() => {
     let isMounted = true
 
-    const loadTransactions = async () => {
+    const loadDashboardSummary = async () => {
       try {
-        setIsTransactionsLoading(true)
+        setIsDashboardLoading(true)
         setDashboardSummary(emptyDashboardSummary)
-        setRecentTransactions([])
-        setTransactionsError('')
+        setDashboardError('')
 
-        const [nextDashboardSummary, nextRecentTransactions] = await Promise.all([
-          fetchDashboardSummary(),
-          fetchTransactions(5),
-        ])
+        const nextDashboardSummary = await fetchDashboardSummary()
 
         if (isMounted) {
           setDashboardSummary(nextDashboardSummary)
-          setRecentTransactions(nextRecentTransactions)
-          setTransactionsError('')
+          setDashboardError('')
         }
       } catch (error) {
         if (isMounted) {
           setDashboardSummary(emptyDashboardSummary)
-          setRecentTransactions([])
-          setTransactionsError(error.message || 'Unable to load recent transactions.')
+          setDashboardError(error.message || 'Unable to load dashboard summary.')
         }
       } finally {
         if (isMounted) {
-          setIsTransactionsLoading(false)
+          setIsDashboardLoading(false)
         }
       }
     }
 
-    loadTransactions()
+    loadDashboardSummary()
 
     return () => {
       isMounted = false
@@ -166,7 +159,7 @@ function Dashboard() {
               <strong>{account.amount}</strong>
             </article>
           ))}
-          {!isTransactionsLoading && accounts.length === 0 && (
+          {!isDashboardLoading && accounts.length === 0 && (
             <article className="account-card">
               <span className="account-id">No accounts found</span>
               <span className="account-pill">Live data</span>
@@ -176,51 +169,13 @@ function Dashboard() {
         </div>
       </section>
 
-      <section className="transactions-section">
-        <div className="section-heading transactions-heading">
-          <div>
-            <h2>Recent transactions</h2>
-            <p>Latest 5 account activities</p>
-          </div>
+      {isDashboardLoading && (
+        <div className="section-loader" role="status" aria-live="polite">
+          <span className="section-loader-spinner" aria-hidden="true"></span>
+          <span>Loading dashboard...</span>
         </div>
-
-        {transactionsError && <p className="dashboard-state error">{transactionsError}</p>}
-
-        <div className="transaction-list">
-          {isTransactionsLoading && (
-            <div className="section-loader" role="status" aria-live="polite">
-              <span className="section-loader-spinner" aria-hidden="true"></span>
-              <span>Loading recent transactions...</span>
-            </div>
-          )}
-          {recentTransactions.map((transaction) => (
-            <article className="transaction-row" key={transaction.id || transaction.name}>
-              <span className={`transaction-icon ${transaction.tone}`}>
-                <i className={`bi bi-${transaction.icon}`} aria-hidden="true"></i>
-              </span>
-              <div className="transaction-name">
-                <strong>{transaction.receiverName || transaction.name}</strong>
-                <small>{transaction.detail}</small>
-              </div>
-              <span className="transaction-date">{transaction.date}</span>
-              <span className={`transaction-status ${transaction.status.toLowerCase()}`}>
-                {transaction.status}
-              </span>
-              <strong className={`transaction-amount ${transaction.tone}`}>
-                {transaction.amount}
-              </strong>
-            </article>
-          ))}
-          {!isTransactionsLoading && recentTransactions.length === 0 && (
-            <article className="transaction-row">
-              <div className="transaction-name">
-                <strong>No recent transactions found.</strong>
-                <small>New activity will appear here.</small>
-              </div>
-            </article>
-          )}
-        </div>
-      </section>
+      )}
+      {dashboardError && <p className="dashboard-state error">{dashboardError}</p>}
     </div>
   )
 }

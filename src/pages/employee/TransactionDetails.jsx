@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
+  approveEmployeeTransaction,
   fetchEmployeeTransaction,
-  updateEmployeeTransactionStatus,
+  fetchEmployeeTransactionXml,
+  rejectEmployeeTransaction,
 } from '../../api/employeeTransactions'
 
 const detailSections = [
@@ -31,6 +33,10 @@ const detailSections = [
 ]
 
 const getStatusClass = (status = '') => status.toLowerCase().replace(/\s+/g, '-')
+const rejectedXmlMessage = 'Transaction rejected. PACS.008 XML was not generated.'
+
+const isFinalStatus = (status = '') => ['APPROVED', 'REJECTED'].includes(status.toUpperCase())
+const isRejectedStatus = (status = '') => status.toUpperCase() === 'REJECTED'
 
 function DetailCard({ title, fields, source }) {
   return (
@@ -53,28 +59,76 @@ function TransactionDetails() {
   const location = useLocation()
   const navigate = useNavigate()
   const [transaction, setTransaction] = useState(location.state?.transaction || null)
-  const [activeTab, setActiveTab] = useState('parties')
-  const [isLoading, setIsLoading] = useState(!location.state?.transaction)
+  const [activeTab, setActiveTab] = useState('xml')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isXmlLoading, setIsXmlLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [activeAction, setActiveAction] = useState('')
+  const [pacs008Content, setPacs008Content] = useState('')
+  const [hasRequestedPacs008, setHasRequestedPacs008] = useState(false)
+
+  const transactionId = decodeURIComponent(transactionReference)
+
+  const loadTransaction = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setIsLoading(true)
+    }
+    setErrorMessage('')
+
+    try {
+      const nextTransaction = await fetchEmployeeTransaction(transactionId)
+      setTransaction(nextTransaction)
+      return nextTransaction
+    } finally {
+      if (showLoading) {
+        setIsLoading(false)
+      }
+    }
+  }, [transactionId])
+
+  const loadPacs008Xml = useCallback(async (status = transaction?.status) => {
+    if (isRejectedStatus(status)) {
+      setPacs008Content(rejectedXmlMessage)
+      setHasRequestedPacs008(true)
+      return rejectedXmlMessage
+    }
+
+    setIsXmlLoading(true)
+    setHasRequestedPacs008(true)
+    setErrorMessage('')
+
+    try {
+      const nextXmlContent = await fetchEmployeeTransactionXml(transactionId)
+      setPacs008Content(nextXmlContent || 'PACS.008 XML is not available for this transaction.')
+      return nextXmlContent
+    } catch (error) {
+      setPacs008Content('')
+      setErrorMessage(error.message || 'Unable to load PACS.008 XML.')
+      return ''
+    } finally {
+      setIsXmlLoading(false)
+    }
+  }, [transaction?.status, transactionId])
 
   useEffect(() => {
     let isMounted = true
 
-    const loadTransaction = async () => {
-      if (location.state?.transaction) {
-        return
-      }
-
+    const loadInitialTransaction = async () => {
       try {
         setIsLoading(true)
         setErrorMessage('')
+        setPacs008Content('')
+        setHasRequestedPacs008(false)
 
-        const nextTransaction = await fetchEmployeeTransaction(decodeURIComponent(transactionReference))
+        const nextTransaction = await fetchEmployeeTransaction(transactionId)
 
         if (isMounted) {
           setTransaction(nextTransaction)
+          if (isRejectedStatus(nextTransaction.status)) {
+            setPacs008Content(rejectedXmlMessage)
+            setHasRequestedPacs008(true)
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -87,15 +141,21 @@ function TransactionDetails() {
       }
     }
 
-    loadTransaction()
+    loadInitialTransaction()
 
     return () => {
       isMounted = false
     }
-  }, [location.state, transactionReference])
+  }, [transactionId])
+
+  useEffect(() => {
+    if (activeTab === 'xml' && !hasRequestedPacs008 && !isXmlLoading) {
+      loadPacs008Xml()
+    }
+  }, [activeTab, hasRequestedPacs008, isXmlLoading, loadPacs008Xml])
 
   const handleReviewAction = async (action) => {
-    if (!transaction) {
+    if (!transaction || activeAction || isFinalStatus(transaction.status)) {
       return
     }
 
@@ -104,12 +164,34 @@ function TransactionDetails() {
       setActionMessage('')
       setErrorMessage('')
 
-      const updatedTransaction = await updateEmployeeTransactionStatus(transaction, action)
-      setTransaction(updatedTransaction)
-      setActionMessage(`Transaction ${updatedTransaction.status.toLowerCase()} successfully.`)
+      if (action === 'approve') {
+        await approveEmployeeTransaction(transaction.id || transaction.reference)
+        setHasRequestedPacs008(false)
+        setPacs008Content('')
+        setTransaction((currentTransaction) => ({
+          ...currentTransaction,
+          status: 'Approved',
+        }))
+        setActionMessage('Transaction approved successfully.')
+      } else {
+        await rejectEmployeeTransaction(transaction.id || transaction.reference)
+        setTransaction((currentTransaction) => ({
+          ...currentTransaction,
+          status: 'Rejected',
+        }))
+        setPacs008Content(rejectedXmlMessage)
+        setHasRequestedPacs008(true)
+        setActionMessage('Transaction rejected successfully.')
+      }
 
-      if (action === 'approve-release') {
+      const refreshedTransaction = await loadTransaction(false)
+
+      if (action === 'approve') {
         setActiveTab('xml')
+        await loadPacs008Xml(refreshedTransaction.status)
+      } else {
+        setActiveTab('xml')
+        setPacs008Content(rejectedXmlMessage)
       }
     } catch (error) {
       setErrorMessage(error.message || 'Unable to update transaction.')
@@ -150,8 +232,10 @@ function TransactionDetails() {
     ['Amount', transaction.amount],
     ['Payment Date', transaction.paymentDate],
     ['Status', transaction.status],
-    ['Channel', 'Fedwire'],
+    ['Channel', transaction.channel],
   ]
+  const isActionInProgress = Boolean(activeAction)
+  const areReviewActionsDisabled = isActionInProgress || isFinalStatus(transaction.status)
 
   return (
     <div className="dashboard-main employee-review-page">
@@ -174,28 +258,20 @@ function TransactionDetails() {
             {transaction.status}
           </span>
           <button
-            className="profile-action-button secondary-action"
-            type="button"
-            disabled={Boolean(activeAction)}
-            onClick={() => handleReviewAction('hold')}
-          >
-            Hold
-          </button>
-          <button
             className="profile-action-button secondary-action employee-reject-action"
             type="button"
-            disabled={Boolean(activeAction)}
+            disabled={areReviewActionsDisabled}
             onClick={() => handleReviewAction('reject')}
           >
-            Reject
+            {activeAction === 'reject' ? 'Rejecting...' : 'Reject'}
           </button>
           <button
             className="profile-action-button primary-action"
             type="button"
-            disabled={Boolean(activeAction)}
-            onClick={() => handleReviewAction('approve-release')}
+            disabled={areReviewActionsDisabled}
+            onClick={() => handleReviewAction('approve')}
           >
-            Approve & Release
+            {activeAction === 'approve' ? 'Approving...' : 'Approve'}
           </button>
         </div>
       </section>
@@ -242,59 +318,44 @@ function TransactionDetails() {
       <section className="employee-review-tabs" aria-label="Transaction review tabs">
         <div className="employee-tab-list" role="tablist">
           <button
-            className={activeTab === 'parties' ? 'active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'parties'}
-            onClick={() => setActiveTab('parties')}
-          >
-            Parties
-          </button>
-          <button
             className={activeTab === 'xml' ? 'active' : ''}
             type="button"
             role="tab"
             aria-selected={activeTab === 'xml'}
-            onClick={() => setActiveTab('xml')}
+            onClick={() => {
+              setActiveTab('xml')
+              if (!hasRequestedPacs008) {
+                loadPacs008Xml()
+              }
+            }}
           >
-            PACS.008 XML
+            PACS.008
+          </button>
+          <button
+            className={activeTab === 'pacs002' ? 'active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'pacs002'}
+            onClick={() => setActiveTab('pacs002')}
+          >
+            PACS.002
           </button>
         </div>
 
-        {activeTab === 'parties' && (
-          <div className="employee-parties-grid" role="tabpanel">
-            <DetailCard
-              title="Debtor (Originator)"
-              fields={[
-                ['Name', 'name'],
-                ['Account Number', 'accountNumber'],
-                ['Routing Number', 'routingNumber'],
-                ['Bank Name', 'bankName'],
-                ['Country', 'country'],
-              ]}
-              source={transaction.sender || transaction}
-            />
-            <DetailCard
-              title="Creditor (Beneficiary)"
-              fields={[
-                ['Name', 'name'],
-                ['Account Number', 'accountNumber'],
-                ['Routing Number', 'routingNumber'],
-                ['Bank Name', 'bankName'],
-                ['Country', 'country'],
-              ]}
-              source={transaction.receiver || transaction}
-            />
-          </div>
-        )}
-
         {activeTab === 'xml' && (
           <div className="employee-xml-panel" role="tabpanel">
+            {isXmlLoading && (
+              <div className="employee-xml-loading" role="status" aria-live="polite">
+                Loading PACS.008 XML...
+              </div>
+            )}
             <pre>
-              <code>{transaction.pacs008Xml}</code>
+              <code>{pacs008Content || transaction.pacs008Xml || 'Select an approved transaction to view PACS.008 XML.'}</code>
             </pre>
           </div>
         )}
+
+        {activeTab === 'pacs002' && <div className="employee-pacs002-panel" role="tabpanel"></div>}
       </section>
     </div>
   )

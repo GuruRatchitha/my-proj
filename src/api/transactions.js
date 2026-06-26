@@ -69,13 +69,26 @@ const getCurrentUserId = async () => {
   return userId
 }
 
-const normalizeDashboardAccount = (account) => ({
-  id: account.accountNumber,
-  type: toTitleCase(account.accountType),
-  amount: currencyFormatter.format(Number(account.balance || 0)),
-  balance: Number(account.balance || 0),
-  monthlyChange: Number(account.monthlyChange || 0),
-})
+const getFirstValue = (...values) =>
+  values.find((value) => value || value === 0) ?? ''
+
+const normalizeDashboardAccount = (account) => {
+  const accountNumber = getFirstValue(account.accountNumber, account.id, account.accountNo, account.number)
+  const accountType = getFirstValue(account.accountType, account.type, account.productType, 'Account')
+  const balance = Number(
+    getFirstValue(account.availableBalance, account.currentBalance, account.balance, account.accountBalance, 0),
+  )
+
+  return {
+    id: accountNumber,
+    accountNumber,
+    type: toTitleCase(accountType),
+    accountType: toTitleCase(accountType),
+    amount: currencyFormatter.format(balance),
+    balance,
+    monthlyChange: Number(account.monthlyChange || 0),
+  }
+}
 
 export const normalizeTransaction = (transaction) => {
   const tone = getTransactionTone(transaction)

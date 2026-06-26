@@ -6,6 +6,7 @@ import EmployeeProtectedRoute from './components/EmployeeProtectedRoute'
 import Beneficiary from './pages/beneficiary/Beneficiary'
 import Dashboard from './pages/dashboard/Dashboard'
 import BeneficiaryQueue from './pages/employee/BeneficiaryQueue'
+import AddCustomer from './pages/employee/AddCustomer'
 import Customers from './pages/employee/Customers'
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
 import TransactionDetails from './pages/employee/TransactionDetails'
@@ -36,6 +37,9 @@ function App() {
           <Route element={<EmployeeLayout />}>
             <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
             <Route path="/employee/customers" element={<Customers />} />
+            <Route path="/employee/customers/new" element={<AddCustomer />} />
+            <Route path="/employee/customers/edit/:userId" element={<AddCustomer />} />
+            <Route path="/customers/edit/:userId" element={<AddCustomer />} />
             <Route path="/employee/beneficiary-queue" element={<BeneficiaryQueue />} />
             <Route path="/employee/transaction-queue" element={<TransactionQueue />} />
             <Route path="/employee/transaction-queue/:transactionReference" element={<TransactionDetails />} />

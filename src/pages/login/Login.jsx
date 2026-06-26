@@ -31,10 +31,32 @@ const getUsernameFromLoginResponse = (response) =>
 
 const getRoleNameFromLoginResponse = (response) =>
   response?.roleName ||
+  response?.role ||
+  response?.authority ||
   response?.user?.roleName ||
+  response?.user?.role ||
+  response?.user?.authority ||
   response?.data?.roleName ||
+  response?.data?.role ||
+  response?.data?.authority ||
   response?.data?.user?.roleName ||
+  response?.data?.user?.role ||
+  response?.data?.user?.authority ||
   ''
+
+const normalizeRoleName = (roleName = '') => {
+  const normalizedRole = roleName.toString().trim().toUpperCase()
+
+  if (normalizedRole.includes('EMPLOYEE')) {
+    return 'EMPLOYEE'
+  }
+
+  if (normalizedRole.includes('CUSTOMER')) {
+    return 'CUSTOMER'
+  }
+
+  return normalizedRole
+}
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -88,6 +110,8 @@ function LoginPage() {
 
     setIsSubmitting(true)
     setStatusMessage('')
+    clearStoredCurrentUser()
+    localStorage.removeItem('authToken')
 
     try {
       const payload = {
@@ -97,7 +121,7 @@ function LoginPage() {
       const response = await httpClient.post('/api/auth/login', payload)
       const token = response?.token || response?.accessToken || response?.data?.token
       const username = getUsernameFromLoginResponse(response)
-      const roleName = getRoleNameFromLoginResponse(response)
+      const roleName = normalizeRoleName(getRoleNameFromLoginResponse(response))
       const responseUserId = getUserIdFromData(response)
       const userId =
         responseUserId || responseUserId === 0 ? responseUserId : getUserIdFromToken(token)
@@ -126,21 +150,14 @@ function LoginPage() {
       }
 
       setStatusMessage('Login successful. Redirecting to your dashboard...')
-      if (response?.message === "Login successful") {
-        if (roleName === 'EMPLOYEE') {
-          navigate('/employee/dashboard')
-        } else if (roleName === 'CUSTOMER') {
-          navigate('/customer/dashboard')
-        } else {
-          alert("Unable to Login")
-        }
+      if (roleName === 'EMPLOYEE') {
+        navigate('/employee/dashboard')
+      } else if (roleName === 'CUSTOMER') {
+        navigate('/customer/dashboard')
       } else {
-        alert("Unable to Login")
+        setStatusMessage('Login successful, but no valid role was returned.')
       }
     } catch (error) {
-      if (error?.message === "Invalid email or password") {
-        alert(error?.message || "Failed to Login")
-      }
       setStatusMessage(error.message || 'Unable to sign in. Please try again.')
     } finally {
       setIsSubmitting(false)

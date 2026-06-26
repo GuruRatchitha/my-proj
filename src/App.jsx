@@ -29,6 +29,8 @@ function App() {
             <Route path="/customer/transactions" element={<Transactions />} />
             <Route path="/customer/beneficiary" element={<Beneficiary />} />
             <Route path="/payment" element={<Payment />} />
+            <Route path="/payment/confirmation" element={<Payment />} />
+            <Route path="/payment/success" element={<Payment />} />
           </Route>
         </Route>
 

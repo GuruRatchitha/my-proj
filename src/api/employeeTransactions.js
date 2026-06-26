@@ -43,6 +43,22 @@ const parseMaybeJson = (value) => {
   }
 }
 
+const getObjectValue = (source, ...keys) => {
+  if (!source || typeof source !== 'object') {
+    return ''
+  }
+
+  return getFirstValue(...keys.map((key) => source[key]))
+}
+
+const normalizeDateInput = (value) => {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  return value.replace(/(\.\d{3})\d+/, '$1')
+}
+
 const normalizeTransactionCollection = (response) => {
   if (Array.isArray(response?.transactions)) {
     return response.transactions
@@ -73,7 +89,7 @@ const formatDateTime = (value) => {
     return '-'
   }
 
-  const date = new Date(value)
+  const date = new Date(normalizeDateInput(value))
   return Number.isNaN(date.getTime()) ? '-' : dateTimeFormatter.format(date)
 }
 
@@ -82,7 +98,7 @@ const formatDate = (value) => {
     return '-'
   }
 
-  const date = new Date(value)
+  const date = new Date(normalizeDateInput(value))
   return Number.isNaN(date.getTime()) ? '-' : dateFormatter.format(date)
 }
 
@@ -91,7 +107,7 @@ const getValidDate = (value) => {
     return null
   }
 
-  const date = new Date(value)
+  const date = new Date(normalizeDateInput(value))
   return Number.isNaN(date.getTime()) ? null : date
 }
 
@@ -113,94 +129,18 @@ const normalizeStatus = (status) => {
   return 'Pending'
 }
 
-const escapeXml = (value) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-
-export const buildPacs008Xml = (transaction) => {
-  const reference = escapeXml(transaction.reference)
-  const amount = Number(transaction.rawAmount || 0).toFixed(2)
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
-  <FIToFICstmrCdtTrf>
-    <GrpHdr>
-      <MsgId>${reference}</MsgId>
-      <CreDtTm>${escapeXml(transaction.isoPaymentDate)}</CreDtTm>
-      <NbOfTxs>1</NbOfTxs>
-      <SttlmInf>
-        <SttlmMtd>CLRG</SttlmMtd>
-        <ClrSys>
-          <Cd>FDW</Cd>
-        </ClrSys>
-      </SttlmInf>
-    </GrpHdr>
-    <CdtTrfTxInf>
-      <PmtId>
-        <InstrId>${reference}</InstrId>
-        <EndToEndId>${reference}</EndToEndId>
-        <TxId>${reference}</TxId>
-      </PmtId>
-      <IntrBkSttlmAmt Ccy="${escapeXml(transaction.currency)}">${amount}</IntrBkSttlmAmt>
-      <IntrBkSttlmDt>${escapeXml(transaction.paymentDateValue)}</IntrBkSttlmDt>
-      <Dbtr>
-        <Nm>${escapeXml(transaction.sender.name)}</Nm>
-        <PstlAdr>
-          <Ctry>${escapeXml(transaction.sender.country)}</Ctry>
-        </PstlAdr>
-      </Dbtr>
-      <DbtrAcct>
-        <Id>
-          <Othr>
-            <Id>${escapeXml(transaction.sender.accountNumber)}</Id>
-          </Othr>
-        </Id>
-      </DbtrAcct>
-      <DbtrAgt>
-        <FinInstnId>
-          <ClrSysMmbId>
-            <MmbId>${escapeXml(transaction.sender.routingNumber)}</MmbId>
-          </ClrSysMmbId>
-          <Nm>${escapeXml(transaction.sender.bankName)}</Nm>
-        </FinInstnId>
-      </DbtrAgt>
-      <CdtrAgt>
-        <FinInstnId>
-          <ClrSysMmbId>
-            <MmbId>${escapeXml(transaction.receiver.routingNumber)}</MmbId>
-          </ClrSysMmbId>
-          <Nm>${escapeXml(transaction.receiver.bankName)}</Nm>
-        </FinInstnId>
-      </CdtrAgt>
-      <Cdtr>
-        <Nm>${escapeXml(transaction.receiver.name)}</Nm>
-        <PstlAdr>
-          <Ctry>${escapeXml(transaction.receiver.country)}</Ctry>
-        </PstlAdr>
-      </Cdtr>
-      <CdtrAcct>
-        <Id>
-          <Othr>
-            <Id>${escapeXml(transaction.receiver.accountNumber)}</Id>
-          </Othr>
-        </Id>
-      </CdtrAcct>
-    </CdtTrfTxInf>
-  </FIToFICstmrCdtTrf>
-</Document>`
-}
-
 export const normalizeEmployeeTransaction = (transaction, index = 0) => {
+  const senderDetails = transaction.senderDetails || {}
+  const receiverDetails = transaction.receiverDetails || {}
+  const paymentDetails = transaction.paymentDetails || {}
   const id = getFirstValue(
     transaction.id,
     transaction.transactionId,
+    paymentDetails.transactionId,
     transaction.paymentId,
     transaction.paymentTransactionId,
     transaction.transactionReference,
+    paymentDetails.transactionReference,
     `TXN-${index + 1}`,
   )
   const createdAt = getFirstValue(
@@ -208,10 +148,12 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
     transaction.createdDate,
     transaction.transactionDate,
     transaction.paymentDate,
+    paymentDetails.paymentDate,
   )
-  const paymentDate = getFirstValue(transaction.paymentDate, transaction.transactionDate, createdAt)
-  const rawAmount = Number(getFirstValue(transaction.amount, transaction.transferAmount, 0))
+  const paymentDate = getFirstValue(paymentDetails.paymentDate, transaction.paymentDate, transaction.transactionDate, createdAt)
+  const rawAmount = Number(getFirstValue(paymentDetails.amount, transaction.amount, transaction.transferAmount, 0))
   const reference = getFirstValue(
+    paymentDetails.transactionReference,
     transaction.transactionReference,
     transaction.paymentTransactionId,
     transaction.bankTransactionId,
@@ -227,51 +169,98 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
     time: formatDateTime(createdAt),
     rawAmount,
     amount: currencyFormatter.format(rawAmount),
-    currency: transaction.currency || 'USD',
-    status: normalizeStatus(getFirstValue(transaction.transferStatus, transaction.status, transaction.approvalStatus)),
+    currency: paymentDetails.currency || transaction.currency || 'USD',
+    status: normalizeStatus(getFirstValue(paymentDetails.status, transaction.transferStatus, transaction.status, transaction.approvalStatus)),
     paymentDate: formatDate(paymentDate),
     paymentDateValue: validPaymentDate ? validPaymentDate.toISOString().slice(0, 10) : '',
     isoPaymentDate: validPaymentDate ? validPaymentDate.toISOString() : new Date().toISOString(),
-    channel: 'Fedwire',
+    channel: getFirstValue(paymentDetails.channel, transaction.channel, 'Fedwire'),
     sender: {
-      name: getFirstValue(transaction.senderName, transaction.debtorName, transaction.customerName, transaction.userName, 'Account holder'),
-      accountNumber: getFirstValue(transaction.senderAccountNumber, transaction.debtorAccountNumber, transaction.fromAccountNumber, transaction.accountNumber),
-      routingNumber: getFirstValue(transaction.senderRoutingNumber, transaction.debtorRoutingNumber, transaction.fromRoutingNumber, transaction.routingNumber),
-      bankName: getFirstValue(transaction.senderBankName, transaction.debtorBankName, transaction.fromBankName, 'ABC Bank'),
-      country: getFirstValue(transaction.senderCountry, transaction.debtorCountry, transaction.countryCode, 'US'),
+      name: getFirstValue(getObjectValue(transaction.sender, 'name'), senderDetails.senderName, transaction.senderName, transaction.debtorName, transaction.customerName, transaction.userName, 'Account holder'),
+      accountNumber: getFirstValue(getObjectValue(transaction.sender, 'accountNumber'), senderDetails.senderAccountNumber, transaction.senderAccountNumber, transaction.debtorAccountNumber, transaction.fromAccountNumber, transaction.accountNumber),
+      routingNumber: getFirstValue(getObjectValue(transaction.sender, 'routingNumber'), senderDetails.senderRoutingNumber, transaction.senderRoutingNumber, transaction.debtorRoutingNumber, transaction.fromRoutingNumber, transaction.routingNumber),
+      bankName: getFirstValue(getObjectValue(transaction.sender, 'bankName'), senderDetails.senderBankName, transaction.senderBankName, transaction.debtorBankName, transaction.fromBankName, 'ABC Bank'),
+      country: getFirstValue(getObjectValue(transaction.sender, 'country'), senderDetails.senderCountry, transaction.senderCountry, transaction.debtorCountry, transaction.countryCode, 'US'),
     },
     receiver: {
-      name: getFirstValue(transaction.receiverName, transaction.creditorName, transaction.beneficiaryName),
-      accountNumber: getFirstValue(transaction.receiverAccountNumber, transaction.creditorAccountNumber, transaction.beneficiaryAccountNumber, transaction.toAccountNumber),
-      routingNumber: getFirstValue(transaction.receiverRoutingNumber, transaction.creditorRoutingNumber, transaction.beneficiaryRoutingNumber, transaction.toRoutingNumber),
-      bankName: getFirstValue(transaction.receiverBankName, transaction.creditorBankName, transaction.beneficiaryBankName, 'Beneficiary Bank'),
-      country: getFirstValue(transaction.receiverCountry, transaction.creditorCountry, transaction.beneficiaryCountry, transaction.countryCode, 'US'),
+      name: getFirstValue(getObjectValue(transaction.receiver, 'name'), receiverDetails.receiverName, transaction.receiverName, transaction.creditorName, transaction.beneficiaryName),
+      accountNumber: getFirstValue(getObjectValue(transaction.receiver, 'accountNumber'), receiverDetails.receiverAccountNumber, transaction.receiverAccountNumber, transaction.creditorAccountNumber, transaction.beneficiaryAccountNumber, transaction.toAccountNumber),
+      routingNumber: getFirstValue(getObjectValue(transaction.receiver, 'routingNumber'), receiverDetails.receiverRoutingNumber, transaction.receiverRoutingNumber, transaction.creditorRoutingNumber, transaction.beneficiaryRoutingNumber, transaction.toRoutingNumber),
+      bankName: getFirstValue(getObjectValue(transaction.receiver, 'bankName'), receiverDetails.receiverBankName, transaction.receiverBankName, transaction.creditorBankName, transaction.beneficiaryBankName, 'Beneficiary Bank'),
+      country: getFirstValue(getObjectValue(transaction.receiver, 'country'), receiverDetails.receiverCountry, transaction.receiverCountry, transaction.creditorCountry, transaction.beneficiaryCountry, transaction.countryCode, 'US'),
     },
   }
 
   return {
     ...normalized,
-    pacs008Xml: transaction.pacs008Xml || transaction.pacs008 || transaction.xmlMessage || buildPacs008Xml(normalized),
+    pacs008Xml: transaction.pacs008Xml || transaction.pacs008 || transaction.xmlMessage || '',
     searchableStatus: toTitleCase(normalized.status),
   }
 }
 
-export const fetchEmployeeTransactions = async () => {
-  try {
-    const response = await httpClient.get('/api/employee/transactions')
-    const transactions = normalizeTransactionCollection(response)
+const formatXml = (value) => {
+  const xml = String(value || '').trim()
 
-    if (transactions.length > 0) {
-      return transactions.map(normalizeEmployeeTransaction)
-    }
-  } catch {
-    // Fall through to the dashboard transaction feed below.
+  if (!xml.startsWith('<')) {
+    return xml
   }
 
-  const fallbackResponse = await httpClient.get('/api/dashboard/transactions')
-  const fallbackTransactions = normalizeTransactionCollection(fallbackResponse)
+  const normalizedXml = xml.replace(/>\s*</g, '>\n<')
+  let indentLevel = 0
 
-  return fallbackTransactions.map(normalizeEmployeeTransaction)
+  return normalizedXml
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (line.startsWith('</')) {
+        indentLevel = Math.max(indentLevel - 1, 0)
+      }
+
+      const formattedLine = `${'  '.repeat(indentLevel)}${line}`
+
+      if (
+        line.startsWith('<') &&
+        !line.startsWith('</') &&
+        !line.startsWith('<?') &&
+        !line.startsWith('<!') &&
+        !line.endsWith('/>') &&
+        !line.includes('</')
+      ) {
+        indentLevel += 1
+      }
+
+      return formattedLine
+    })
+    .join('\n')
+}
+
+const normalizePacs008Response = (response) => {
+  const parsedResponse = parseMaybeJson(response)
+
+  if (typeof parsedResponse === 'string') {
+    return formatXml(parsedResponse)
+  }
+
+  if (!parsedResponse || typeof parsedResponse !== 'object') {
+    return ''
+  }
+
+  return formatXml(getFirstValue(
+    parsedResponse.xml,
+    parsedResponse.pacs008Xml,
+    parsedResponse.pacs008,
+    parsedResponse.xmlMessage,
+    parsedResponse.message,
+    parsedResponse.error,
+  ))
+}
+
+export const fetchEmployeeTransactions = async () => {
+  const response = await httpClient.get('/api/employee/transactions')
+  const transactions = normalizeTransactionCollection(response)
+
+  return transactions.map(normalizeEmployeeTransaction)
 }
 
 export const fetchEmployeeTransaction = async (transactionReference) => {
@@ -281,12 +270,9 @@ export const fetchEmployeeTransaction = async (transactionReference) => {
   return normalizeEmployeeTransaction(transaction)
 }
 
-export const updateEmployeeTransactionStatus = async (transaction, action) => {
-  const endpointAction = action === 'approve-release' ? 'approve' : action
-  const transactionId = transaction.id || transaction.reference
-  const response = await httpClient.put(
-    `/api/employee/transactions/${encodeURIComponent(transactionId)}/${endpointAction}`,
-    null,
+export const fetchEmployeeTransactionXml = async (transactionReference) => {
+  const response = await httpClient.get(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/xml`,
     {
       headers: {
         Accept: 'application/xml, text/xml, application/json, text/plain, */*',
@@ -295,27 +281,38 @@ export const updateEmployeeTransactionStatus = async (transaction, action) => {
       transformResponse: [(data) => data],
     },
   )
-  const parsedResponse = parseMaybeJson(response)
 
-  if (isXmlResponse(parsedResponse)) {
-    return {
-      ...transaction,
-      status: 'Approved',
-      pacs008Xml: parsedResponse,
-    }
-  }
+  return normalizePacs008Response(response)
+}
 
-  const updatedTransaction = parsedResponse?.transaction || parsedResponse
+export const approveEmployeeTransaction = async (transactionReference) => {
+  const response = await httpClient.post(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/approve`,
+    null,
+    {
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
 
-  if (updatedTransaction && typeof updatedTransaction === 'object') {
-    return {
-      ...transaction,
-      ...normalizeEmployeeTransaction(updatedTransaction),
-    }
-  }
+  return parseMaybeJson(response)
+}
 
-  return {
-    ...transaction,
-    status: endpointAction === 'reject' ? 'Rejected' : endpointAction === 'hold' ? 'Hold' : transaction.status,
-  }
+export const rejectEmployeeTransaction = async (transactionReference) => {
+  const response = await httpClient.post(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/reject`,
+    null,
+    {
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
+
+  return parseMaybeJson(response)
 }

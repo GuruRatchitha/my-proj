@@ -33,9 +33,22 @@ httpClient.interceptors.response.use(
     return response.data
   },
   (error) => {
+    const responseData = error.response?.data
+    let responseMessage = ''
+
+    if (typeof responseData === 'string') {
+      try {
+        const parsedData = JSON.parse(responseData)
+        responseMessage = parsedData?.message || parsedData?.error || responseData
+      } catch {
+        responseMessage = responseData
+      }
+    }
+
     const message =
-      error.response?.data?.message ||
-      error.response?.data?.error ||
+      responseData?.message ||
+      responseData?.error ||
+      responseMessage ||
       error.message ||
       'Something went wrong. Please try again.'
 

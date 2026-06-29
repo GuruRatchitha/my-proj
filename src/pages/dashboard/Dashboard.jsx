@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDashboardSummary } from '../../api/transactions'
+import { fetchDashboardSummary, fetchTransactions } from '../../api/transactions'
+
+const rowsPerPage = 5
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -48,6 +50,8 @@ const buildSummaryCards = (summary) => {
 function Dashboard() {
   const [isBalanceVisible, setIsBalanceVisible] = useState(true)
   const [dashboardSummary, setDashboardSummary] = useState(emptyDashboardSummary)
+  const [transactionRows, setTransactionRows] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
   const [dashboardError, setDashboardError] = useState('')
   const [isDashboardLoading, setIsDashboardLoading] = useState(true)
   const summaryCards = useMemo(
@@ -55,6 +59,9 @@ function Dashboard() {
     [dashboardSummary],
   )
   const accounts = dashboardSummary.accounts
+  const totalTransactionPages = Math.max(1, Math.ceil(transactionRows.length / rowsPerPage))
+  const pageStartIndex = (currentPage - 1) * rowsPerPage
+  const paginatedTransactions = transactionRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
 
   const availableAccounts = accounts
     .filter((account) => !['salary', 'fixed deposit'].includes(account.type.toLowerCase()))
@@ -79,15 +86,21 @@ function Dashboard() {
         setDashboardSummary(emptyDashboardSummary)
         setDashboardError('')
 
-        const nextDashboardSummary = await fetchDashboardSummary()
+        const [nextDashboardSummary, nextTransactions] = await Promise.all([
+          fetchDashboardSummary(),
+          fetchTransactions(),
+        ])
 
         if (isMounted) {
           setDashboardSummary(nextDashboardSummary)
+          setTransactionRows(nextTransactions)
+          setCurrentPage(1)
           setDashboardError('')
         }
       } catch (error) {
         if (isMounted) {
           setDashboardSummary(emptyDashboardSummary)
+          setTransactionRows([])
           setDashboardError(error.message || 'Unable to load dashboard summary.')
         }
       } finally {
@@ -176,6 +189,83 @@ function Dashboard() {
         </div>
       )}
       {dashboardError && <p className="dashboard-state error">{dashboardError}</p>}
+
+      <section className="transactions-section compact-transactions-section">
+        <div className="section-heading transactions-heading">
+          <div>
+            <h2>Recent Transactions</h2>
+            <p>Latest account activity for this customer.</p>
+          </div>
+        </div>
+
+        <div className="transaction-table-wrap">
+          <table className="table bank-table mb-0">
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Date</th>
+                <th>Receiver Name</th>
+                <th>Account Number</th>
+                <th>Amount</th>
+                <th>Type</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedTransactions.map((transaction) => (
+                <tr key={transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
+                  <td>{transaction.id || '-'}</td>
+                  <td>{transaction.date}</td>
+                  <td>{transaction.receiverName || '-'}</td>
+                  <td>{transaction.accountNumber || '-'}</td>
+                  <td className={transaction.tone === 'credit' ? 'credit-text' : 'debit-text'}>
+                    {transaction.amount}
+                  </td>
+                  <td>{transaction.type || '-'}</td>
+                  <td>
+                    <span className={`transaction-status ${(transaction.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                      {transaction.status || '-'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {!isDashboardLoading && paginatedTransactions.length === 0 && (
+                <tr>
+                  <td colSpan="7">No recent transactions found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pagination-bar">
+          <span>
+            Showing {transactionRows.length === 0 ? 0 : pageStartIndex + 1}-
+            {Math.min(pageStartIndex + rowsPerPage, transactionRows.length)} of {transactionRows.length}
+          </span>
+          <div className="pagination-actions">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+            >
+              <i className="bi bi-chevron-left" aria-hidden="true"></i>
+              Previous
+            </button>
+            <strong>
+              Page {currentPage} of {totalTransactionPages}
+            </strong>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalTransactionPages, page + 1))}
+              disabled={currentPage === totalTransactionPages}
+            >
+              Next
+              <i className="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

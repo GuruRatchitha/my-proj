@@ -263,14 +263,24 @@ function TransactionDetails() {
   }, [transactionId])
 
   useEffect(() => {
-    if (activeTab === 'xml' && !hasRequestedPacs008 && !isXmlLoading) {
-      const loadTimer = window.setTimeout(() => {
-        loadPacs008Xml()
-      }, 0)
+    let isMounted = true
 
-      return () => window.clearTimeout(loadTimer)
+    const loadXmlForActiveTab = async () => {
+      await Promise.resolve()
+
+      if (isMounted) {
+        await loadPacs008Xml()
+      }
     }
-  }, [activeTab, hasRequestedPacs008, isXmlLoading, loadPacs008Xml])
+
+    if (activeTab === 'xml' && transaction && !hasRequestedPacs008 && !isXmlLoading) {
+      loadXmlForActiveTab()
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeTab, hasRequestedPacs008, isXmlLoading, loadPacs008Xml, transaction])
 
   useEffect(() => {
     if (activeTab === 'pacs002' && !hasRequestedPacs002 && !isPacs002Loading) {

@@ -265,6 +265,7 @@ function EmployeeDashboard() {
       const response = await fetchEmployeeDashboard()
 
       setDashboard(normalizeDashboardResponse(response))
+      setErrorMessage(response.warning || '')
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load employee dashboard.')
     } finally {
@@ -284,6 +285,7 @@ function EmployeeDashboard() {
 
         if (isMounted) {
           setDashboard(normalizeDashboardResponse(response))
+          setErrorMessage(response.warning || '')
         }
       } catch (error) {
         if (isMounted) {

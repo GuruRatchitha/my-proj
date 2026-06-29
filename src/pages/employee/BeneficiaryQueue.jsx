@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   approveBeneficiary,
-  fetchPendingBeneficiaries,
+  fetchEmployeeBeneficiariesByStatus,
   rejectBeneficiary,
 } from '../../api/beneficiaries'
 
@@ -22,10 +22,32 @@ const formatSubmittedDate = (createdDate) => {
   return Number.isNaN(date.getTime()) ? '-' : dateTimeFormatter.format(date)
 }
 
+const beneficiaryStatusTabs = [
+  { id: 'pending', label: 'Pending', emptyTitle: 'No pending beneficiaries', emptyText: 'New beneficiary requests will appear here.' },
+  { id: 'approved', label: 'Approved', emptyTitle: 'No approved beneficiaries', emptyText: 'Approved beneficiaries will appear here.' },
+  { id: 'rejected', label: 'Rejected', emptyTitle: 'No rejected beneficiaries', emptyText: 'Rejected beneficiaries will appear here.' },
+]
+
+const getBeneficiaryList = (response) => {
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  if (Array.isArray(response?.beneficiaries)) {
+    return response.beneficiaries
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data
+  }
+
+  return []
+}
+
 const normalizeQueueStatus = (status) => {
   const normalizedStatus = (status || '').toString().trim().toUpperCase()
 
-  if (normalizedStatus === 'ACTIVE') {
+  if (normalizedStatus === 'ACTIVE' || normalizedStatus === 'APPROVED') {
     return 'Approved'
   }
 
@@ -66,27 +88,28 @@ function BeneficiaryQueue() {
   const [queueError, setQueueError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [activeRequestId, setActiveRequestId] = useState('')
+  const [activeStatus, setActiveStatus] = useState('pending')
   const [rejectRequest, setRejectRequest] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
 
   useEffect(() => {
     let isMounted = true
 
-    const loadPendingBeneficiaries = async () => {
+    const loadBeneficiaries = async () => {
       try {
         setIsLoading(true)
         setQueueError('')
 
-        const response = await fetchPendingBeneficiaries()
-        const pendingBeneficiaries = Array.isArray(response) ? response : []
+        const response = await fetchEmployeeBeneficiariesByStatus(activeStatus)
+        const beneficiaries = getBeneficiaryList(response)
 
         if (isMounted) {
-          setBeneficiaryRequests(pendingBeneficiaries.map(normalizeBeneficiaryRequest))
+          setBeneficiaryRequests(beneficiaries.map(normalizeBeneficiaryRequest))
         }
       } catch (error) {
         if (isMounted) {
           setBeneficiaryRequests([])
-          setQueueError(error.message || 'Unable to load beneficiary queue.')
+          setQueueError(error.message || 'Unable to load beneficiaries.')
         }
       } finally {
         if (isMounted) {
@@ -95,12 +118,14 @@ function BeneficiaryQueue() {
       }
     }
 
-    loadPendingBeneficiaries()
+    loadBeneficiaries()
 
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [activeStatus])
+
+  const activeTab = beneficiaryStatusTabs.find((tab) => tab.id === activeStatus) || beneficiaryStatusTabs[0]
 
   const updateRequestFromResponse = (request, response) => {
     const updatedBeneficiary = response?.beneficiary || {}
@@ -114,15 +139,17 @@ function BeneficiaryQueue() {
       request.rejectionReason
 
     setBeneficiaryRequests((currentRequests) =>
-      currentRequests.map((currentRequest) =>
-        currentRequest.id === request.id
-          ? {
-            ...currentRequest,
-            status: nextStatus,
-            rejectionReason: nextRejectionReason,
-          }
-          : currentRequest,
-      ),
+      currentRequests
+        .map((currentRequest) =>
+          currentRequest.id === request.id
+            ? {
+              ...currentRequest,
+              status: nextStatus,
+              rejectionReason: nextRejectionReason,
+            }
+            : currentRequest,
+        )
+        .filter((currentRequest) => currentRequest.status.toLowerCase() === activeStatus),
     )
     setActionMessage(response?.message || 'Beneficiary updated successfully')
   }
@@ -176,8 +203,8 @@ function BeneficiaryQueue() {
   return (
     <div className="dashboard-main">
       <section className="title-block">
-        <h1>Beneficiary queue</h1>
-        <p>Review and approve new payees so payments can flow.</p>
+        <h1>Beneficiaries</h1>
+        <p>Review pending payees and revisit approved or rejected beneficiary records.</p>
       </section>
 
       {actionMessage && (
@@ -188,12 +215,32 @@ function BeneficiaryQueue() {
       )}
       {queueError && <p className="dashboard-state error">{queueError}</p>}
 
-      <section className="employee-queue-list" aria-label="Beneficiary approval queue">
+      <div className="employee-tab-list employee-status-tabs" role="tablist" aria-label="Beneficiary status">
+        {beneficiaryStatusTabs.map((tab) => (
+          <button
+            className={activeStatus === tab.id ? 'active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeStatus === tab.id}
+            key={tab.id}
+            onClick={() => {
+              setActiveStatus(tab.id)
+              setActionMessage('')
+              setQueueError('')
+              setRejectRequest(null)
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <section className="employee-queue-list" aria-label={`${activeTab.label} beneficiaries`}>
         {isLoading && (
           <div className="transaction-list">
             <div className="section-loader" role="status" aria-live="polite">
               <span className="section-loader-spinner" aria-hidden="true"></span>
-              <span>Loading beneficiary queue...</span>
+              <span>Loading beneficiaries...</span>
             </div>
           </div>
         )}
@@ -203,9 +250,9 @@ function BeneficiaryQueue() {
             <div className="card-body">
               <div className="employee-queue-header">
                 <div>
-                  <span className="account-id">Queue clear</span>
-                  <h2>No pending beneficiaries</h2>
-                  <p>New beneficiary requests will appear here.</p>
+                  <span className="account-id">{activeTab.label}</span>
+                  <h2>{activeTab.emptyTitle}</h2>
+                  <p>{activeTab.emptyText}</p>
                 </div>
               </div>
             </div>
@@ -247,6 +294,13 @@ function BeneficiaryQueue() {
                     <small>Submitted {request.submittedAt}</small>
                   </div>
                 </div>
+
+                {request.status === 'Rejected' && request.rejectionReason && (
+                  <div className="employee-rejection-note">
+                    <span>Rejection reason</span>
+                    <strong>{request.rejectionReason}</strong>
+                  </div>
+                )}
 
                 <div className="employee-queue-actions">
                   <button

@@ -24,6 +24,9 @@ export const fetchBeneficiaries = async () => {
 export const fetchPendingBeneficiaries = async () =>
   httpClient.get('/api/employee/beneficiaries/pending')
 
+export const fetchEmployeeBeneficiariesByStatus = async (status) =>
+  httpClient.get(`/api/employee/beneficiaries/${status}`)
+
 export const approveBeneficiary = async ({ userId, accountNumber, routingNumber }) =>
   httpClient.put(`/api/employee/beneficiaries/${userId}/${accountNumber}/${routingNumber}/approve`)
 

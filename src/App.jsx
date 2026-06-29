@@ -8,6 +8,7 @@ import Dashboard from './pages/dashboard/Dashboard'
 import BeneficiaryQueue from './pages/employee/BeneficiaryQueue'
 import Customers from './pages/employee/Customers'
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
+import SettlementAccount from './pages/employee/SettlementAccount'
 import TransactionDetails from './pages/employee/TransactionDetails'
 import TransactionQueue from './pages/employee/TransactionQueue'
 import LoginPage from './pages/login/Login'
@@ -41,6 +42,7 @@ function App() {
             <Route path="/employee/beneficiary-queue" element={<BeneficiaryQueue />} />
             <Route path="/employee/transaction-queue" element={<TransactionQueue />} />
             <Route path="/employee/transaction-queue/:transactionReference" element={<TransactionDetails />} />
+            <Route path="/employee/settlement-account" element={<SettlementAccount />} />
           </Route>
         </Route>
       </Routes>

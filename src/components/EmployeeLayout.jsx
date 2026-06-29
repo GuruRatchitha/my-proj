@@ -17,12 +17,17 @@ const employeeNavItems = [
   {
     to: '/employee/beneficiary-queue',
     icon: 'bi bi-person-check',
-    label: 'Beneficiary Queue',
+    label: 'Beneficiaries',
   },
   {
     to: '/employee/transaction-queue',
     icon: 'bi bi-arrow-left-right',
     label: 'Transaction Queue',
+  },
+  {
+    to: '/employee/settlement-account',
+    icon: 'bi bi-bank',
+    label: 'Settlement Account',
   },
 ]
 

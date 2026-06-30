@@ -27,11 +27,14 @@ export const fetchPendingBeneficiaries = async () =>
 export const fetchEmployeeBeneficiariesByStatus = async (status) =>
   httpClient.get(`/api/employee/beneficiaries/${status}`)
 
-export const approveBeneficiary = async ({ userId, accountNumber, routingNumber }) =>
-  httpClient.put(`/api/employee/beneficiaries/${userId}/${accountNumber}/${routingNumber}/approve`)
+export const approveBeneficiary = async (beneficiaryId) =>
+  httpClient.put(`/api/employee/beneficiaries/${beneficiaryId}/approve`, {
+    status: 'APPROVED',
+  })
 
-export const rejectBeneficiary = async ({ userId, accountNumber, routingNumber, reason }) =>
-  httpClient.put(`/api/employee/beneficiaries/${userId}/${accountNumber}/${routingNumber}/reject`, {
+export const rejectBeneficiary = async (beneficiaryId, reason) =>
+  httpClient.put(`/api/employee/beneficiaries/${beneficiaryId}/reject`, {
+    status: 'REJECTED',
     reason,
     rejectionReason: reason,
   })

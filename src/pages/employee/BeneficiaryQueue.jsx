@@ -60,6 +60,7 @@ const normalizeQueueStatus = (status) => {
 
 const normalizeBeneficiaryRequest = (beneficiary, index = 0) => {
   const status = normalizeQueueStatus(beneficiary.status)
+  const beneficiaryId = beneficiary.beneficiaryId ?? beneficiary.id ?? null
   const customerName =
     beneficiary.userName ||
     beneficiary.customerName ||
@@ -68,7 +69,8 @@ const normalizeBeneficiaryRequest = (beneficiary, index = 0) => {
     ''
 
   return {
-    id: `${beneficiary.userId || 'USER'}-${beneficiary.accountNumber || index}-${beneficiary.routingNumber || index}`,
+    id: beneficiaryId,
+    rowKey: beneficiaryId ?? `${beneficiary.accountNumber || 'BEN'}-${beneficiary.routingNumber || index}`,
     userId: beneficiary.userId || '',
     customerName,
     beneficiaryName: beneficiary.beneficiaryName || '',
@@ -127,21 +129,21 @@ function BeneficiaryQueue() {
 
   const activeTab = beneficiaryStatusTabs.find((tab) => tab.id === activeStatus) || beneficiaryStatusTabs[0]
 
-  const updateRequestFromResponse = (request, response) => {
+  const updateRequestFromResponse = (request, response, action) => {
     const updatedBeneficiary = response?.beneficiary || {}
     const nextStatus = updatedBeneficiary.status
       ? normalizeQueueStatus(updatedBeneficiary.status)
-      : request.status
+      : action === 'approve' ? 'Approved' : 'Rejected'
     const nextRejectionReason =
       updatedBeneficiary.rejectionReason ||
       updatedBeneficiary.rejectReason ||
       updatedBeneficiary.reason ||
-      request.rejectionReason
+      (action === 'reject' ? rejectionReason.trim() : request.rejectionReason)
 
     setBeneficiaryRequests((currentRequests) =>
       currentRequests
         .map((currentRequest) =>
-          currentRequest.id === request.id
+          currentRequest.rowKey === request.rowKey
             ? {
               ...currentRequest,
               status: nextStatus,
@@ -156,23 +158,31 @@ function BeneficiaryQueue() {
 
   const handleReviewAction = async (request, action) => {
     try {
-      setActiveRequestId(request.id)
+      setActiveRequestId(request.rowKey)
       setActionMessage('')
       setQueueError('')
 
-      const payload = {
-        userId: request.userId,
-        accountNumber: request.accountNumber,
-        routingNumber: request.routingNumber,
-        reason: rejectionReason.trim(),
+      if (request.id === null || request.id === undefined || request.id === '') {
+        throw new Error('The beneficiary record ID is missing. Refresh the list and try again.')
       }
-      const response = action === 'approve'
-        ? await approveBeneficiary(payload)
-        : await rejectBeneficiary(payload)
 
-      updateRequestFromResponse(request, response)
+      const response = action === 'approve'
+        ? await approveBeneficiary(request.id)
+        : await rejectBeneficiary(request.id, rejectionReason.trim())
+
+      updateRequestFromResponse(request, response, action)
+      return true
     } catch (error) {
-      setQueueError(error.message || 'Unable to update beneficiary request.')
+      console.error(error.response?.data || error.message)
+      const backendError = error.response?.data || error.data
+      const errorMessage =
+        backendError?.message ||
+        backendError?.error ||
+        (typeof backendError === 'string' ? backendError : '') ||
+        error.message ||
+        'Unable to update beneficiary request.'
+      setQueueError(errorMessage)
+      return false
     } finally {
       setActiveRequestId('')
     }
@@ -196,8 +206,10 @@ function BeneficiaryQueue() {
       return
     }
 
-    await handleReviewAction(rejectRequest, 'reject')
-    closeRejectDialog()
+    const wasRejected = await handleReviewAction(rejectRequest, 'reject')
+    if (wasRejected) {
+      closeRejectDialog()
+    }
   }
 
   return (
@@ -261,15 +273,15 @@ function BeneficiaryQueue() {
 
         {beneficiaryRequests.map((request) => {
           const isPending = request.status === 'Pending'
-          const isActiveRequest = activeRequestId === request.id
+          const isActiveRequest = activeRequestId === request.rowKey
           const statusClass = request.status === 'Approved' ? 'approved' : request.status === 'Rejected' ? 'inactive' : 'pending'
 
           return (
-            <article className="card employee-queue-card" key={request.id}>
+            <article className="card employee-queue-card" key={request.rowKey}>
               <div className="card-body">
                 <div className="employee-queue-header">
                   <div>
-                    <span className="account-id">{request.id}</span>
+                    <span className="account-id">{request.id ? `Beneficiary ${request.id}` : 'Beneficiary'}</span>
                     <h2>{request.beneficiaryName}</h2>
                     <p>{request.townName}, {request.countryCode}</p>
                   </div>

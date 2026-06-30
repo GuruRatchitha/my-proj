@@ -121,8 +121,8 @@ function Beneficiary() {
   const handleInputChange = (event) => {
     const { name, value } = event.target
     const normalizedValue = {
-      accountNumber: value.replace(/\D/g, '').slice(0, 11),
-      routingNumber: value.replace(/\D/g, '').slice(0, 9),
+      accountNumber: value.replace(/\D/g, ''),
+      routingNumber: value.replace(/\D/g, ''),
       townName: value.replace(/[^a-zA-Z\s]/g, '').slice(0, 35),
     }[name] ?? value
 
@@ -233,9 +233,6 @@ function Beneficiary() {
                 name="accountNumber"
                 type="text"
                 inputMode="numeric"
-                maxLength={11}
-                pattern="\d{11}"
-                title="Account number must be exactly 11 digits."
                 value={formValues.accountNumber}
                 onChange={handleInputChange}
                 required
@@ -248,9 +245,6 @@ function Beneficiary() {
                 name="routingNumber"
                 type="text"
                 inputMode="numeric"
-                maxLength={9}
-                pattern="\d{9}"
-                title="Routing number must be exactly 9 digits."
                 value={formValues.routingNumber}
                 onChange={handleInputChange}
                 required

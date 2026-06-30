@@ -114,7 +114,11 @@ const getValidDate = (value) => {
 const normalizeStatus = (status) => {
   const normalizedStatus = (status || '').toString().trim().toUpperCase()
 
-  if (normalizedStatus === 'COMPLETED') {
+  if (!normalizedStatus) {
+    return ''
+  }
+
+  if (['COMPLETED', 'COMPLETE', 'ACSC', 'ACCEPTED', 'SETTLED'].includes(normalizedStatus)) {
     return 'Completed'
   }
 
@@ -130,7 +134,7 @@ const normalizeStatus = (status) => {
     return 'Approved'
   }
 
-  if (normalizedStatus === 'REJECTED') {
+  if (normalizedStatus === 'REJECTED' || normalizedStatus === 'RJCT') {
     return 'Rejected'
   }
 
@@ -138,13 +142,14 @@ const normalizeStatus = (status) => {
     return 'Hold'
   }
 
-  return 'Pending'
+  return toTitleCase(normalizedStatus)
 }
 
 export const normalizeEmployeeTransaction = (transaction, index = 0) => {
   const senderDetails = transaction.senderDetails || {}
   const receiverDetails = transaction.receiverDetails || {}
   const paymentDetails = transaction.paymentDetails || {}
+  const xmlDetails = transaction.xmlDetails || transaction.messages || transaction.messageDetails || {}
   const id = getFirstValue(
     transaction.id,
     transaction.transactionId,
@@ -182,7 +187,19 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
     rawAmount,
     amount: currencyFormatter.format(rawAmount),
     currency: paymentDetails.currency || transaction.currency || 'USD',
-    status: normalizeStatus(getFirstValue(transaction.status, paymentDetails.status, transaction.transferStatus, transaction.approvalStatus)),
+    status: normalizeStatus(getFirstValue(
+      transaction.status,
+      transaction.currentStatus,
+      transaction.transactionStatus,
+      transaction.transferStatus,
+      transaction.paymentStatus,
+      transaction.processingStatus,
+      paymentDetails.status,
+      paymentDetails.transactionStatus,
+      paymentDetails.paymentStatus,
+      paymentDetails.processingStatus,
+      transaction.approvalStatus,
+    )),
     paymentDate: formatDate(paymentDate),
     paymentDateValue: validPaymentDate ? validPaymentDate.toISOString().slice(0, 10) : '',
     isoPaymentDate: validPaymentDate ? validPaymentDate.toISOString() : new Date().toISOString(),
@@ -205,7 +222,44 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
 
   return {
     ...normalized,
-    pacs008Xml: transaction.pacs008Xml || transaction.pacs008 || transaction.xmlMessage || '',
+    pacs008Xml: getFirstValue(
+      transaction.pacs008Xml,
+      transaction.pacs008XML,
+      transaction.pacs008,
+      transaction.pacs008Message,
+      transaction.pacs008MessageXml,
+      transaction.pacs008MessageXML,
+      transaction.xmlMessage,
+      transaction.xml,
+      paymentDetails.pacs008Xml,
+      paymentDetails.pacs008,
+      xmlDetails.pacs008Xml,
+      xmlDetails.pacs008,
+    ),
+    pacs002Xml: getFirstValue(
+      transaction.pacs002Xml,
+      transaction.pacs002XML,
+      transaction.pacs002,
+      transaction.pacs002Message,
+      transaction.pacs002MessageXml,
+      transaction.pacs002MessageXML,
+      paymentDetails.pacs002Xml,
+      paymentDetails.pacs002,
+      xmlDetails.pacs002Xml,
+      xmlDetails.pacs002,
+    ),
+    admi002Xml: getFirstValue(
+      transaction.admi002Xml,
+      transaction.admi002XML,
+      transaction.admi002,
+      transaction.admi002Message,
+      transaction.admi002MessageXml,
+      transaction.admi002MessageXML,
+      paymentDetails.admi002Xml,
+      paymentDetails.admi002,
+      xmlDetails.admi002Xml,
+      xmlDetails.admi002,
+    ),
     searchableStatus: toTitleCase(normalized.status),
   }
 }
@@ -262,6 +316,8 @@ const normalizePacs008Response = (response) => {
     parsedResponse.xml,
     parsedResponse.pacs008Xml,
     parsedResponse.pacs008,
+    parsedResponse.pacs008Message,
+    parsedResponse.pacs008MessageXml,
     parsedResponse.xmlMessage,
     parsedResponse.message,
     parsedResponse.error,
@@ -309,7 +365,24 @@ export const fetchEmployeeTransactionPacs002 = async (transactionReference) => {
     },
   )
 
-  return response == null ? '' : String(response)
+  const parsedResponse = parseMaybeJson(response)
+
+  if (typeof parsedResponse === 'string') {
+    return formatXml(parsedResponse)
+  }
+
+  if (!parsedResponse || typeof parsedResponse !== 'object') {
+    return ''
+  }
+
+  return formatXml(getFirstValue(
+    parsedResponse.xml,
+    parsedResponse.pacs002Xml,
+    parsedResponse.pacs002,
+    parsedResponse.pacs002Message,
+    parsedResponse.pacs002MessageXml,
+    parsedResponse.message,
+  ))
 }
 
 export const fetchEmployeeTransactionAdmi002 = async (transactionReference) => {
@@ -324,7 +397,33 @@ export const fetchEmployeeTransactionAdmi002 = async (transactionReference) => {
     },
   )
 
-  return response == null ? '' : String(response)
+  const parsedResponse = parseMaybeJson(response)
+
+  if (typeof parsedResponse === 'string') {
+    return formatXml(parsedResponse)
+  }
+
+  if (!parsedResponse || typeof parsedResponse !== 'object') {
+    return ''
+  }
+
+  return formatXml(getFirstValue(
+    parsedResponse.xml,
+    parsedResponse.admi002Xml,
+    parsedResponse.admi002,
+    parsedResponse.admi002Message,
+    parsedResponse.admi002MessageXml,
+    parsedResponse.message,
+  ))
+}
+
+export const fetchEmployeeTransactionProcessingPipeline = async (transactionId) => {
+  const response = await httpClient.get(
+    `/api/employee/transactions/${encodeURIComponent(transactionId)}/processing-pipeline`,
+  )
+  const payload = response?.data || response
+
+  return payload?.pipeline || payload?.processingPipeline || payload
 }
 
 export const approveEmployeeTransaction = async (transactionReference) => {

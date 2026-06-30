@@ -499,6 +499,29 @@
   color: #1763c7;
 }
 
+.transaction-status.running,
+.transaction-status.sending {
+  background: #e7f0ff;
+  color: #1763c7;
+}
+
+.transaction-status.sent,
+.transaction-status.accepted,
+.transaction-status.success,
+.transaction-status.completed,
+.transaction-status.received,
+.transaction-status.settled,
+.transaction-status.acsc {
+  background: #e6f7ee;
+  color: #219a5f;
+}
+
+.transaction-status.failed,
+.transaction-status.rjct {
+  background: #ffe8e8;
+  color: #b83232;
+}
+
 .employee-modal-backdrop {
   position: fixed;
   z-index: 80;
@@ -650,7 +673,209 @@
   overflow-wrap: anywhere;
 }
 
+.employee-review-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.processing-pipeline-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #dce5ef;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 37, 61, 0.05);
+}
+
+.processing-pipeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.processing-pipeline-header h2 {
+  margin: 0;
+  color: #0a1220;
+  font-size: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.processing-pipeline-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #536172;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.processing-pipeline-refresh,
+.processing-pipeline-error {
+  color: #536172;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.processing-pipeline-error {
+  margin: 0 0 14px;
+  color: #b83232;
+}
+
+.processing-pipeline-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.processing-pipeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 92px;
+  padding-bottom: 18px;
+}
+
+.processing-pipeline-step:last-child {
+  min-height: auto;
+  padding-bottom: 0;
+}
+
+.processing-pipeline-marker {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #dce5ef;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #8a99ab;
+  font-size: 14px;
+}
+
+.processing-pipeline-marker.completed {
+  border-color: #219a5f;
+  background: #e6f7ee;
+  color: #219a5f;
+}
+
+.processing-pipeline-marker.failed {
+  border-color: #b83232;
+  background: #ffe8e8;
+  color: #b83232;
+}
+
+.processing-pipeline-marker.running {
+  border-color: #1763c7;
+  background: #e7f0ff;
+  color: #1763c7;
+}
+
+.processing-pipeline-marker.warning {
+  border-color: #d38722;
+  background: #fff6e8;
+  color: #b86e00;
+}
+
+.processing-pipeline-connector {
+  position: absolute;
+  top: 30px;
+  bottom: 0;
+  left: 14px;
+  width: 2px;
+  background: #dce5ef;
+}
+
+.processing-pipeline-connector.running {
+  background: linear-gradient(180deg, #1763c7, #dce5ef, #1763c7);
+  background-size: 100% 220%;
+  animation: processing-pipeline-flow 1.1s linear infinite;
+}
+
+@keyframes processing-pipeline-flow {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 0 220%;
+  }
+}
+
+.processing-pipeline-content {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 2px 0 0;
+}
+
+.processing-pipeline-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.processing-pipeline-title-row h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.processing-pipeline-content p {
+  margin: 0;
+  color: #657386;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.processing-pipeline-content .processing-pipeline-message {
+  color: #36546f;
+  font-weight: 850;
+}
+
+.processing-pipeline-time {
+  display: grid;
+  gap: 3px;
+  width: fit-content;
+  margin-top: 2px;
+  color: #536172;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.processing-pipeline-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(23, 99, 199, 0.22);
+  border-top-color: #1763c7;
+  border-radius: 999px;
+  animation: processing-pipeline-spin 0.75s linear infinite;
+}
+
+@keyframes processing-pipeline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .employee-review-tabs {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid #dce5ef;
   border-radius: 14px;
@@ -971,6 +1196,7 @@
   }
 
   .employee-review-grid,
+  .employee-review-workspace,
   .employee-parties-grid,
   .employee-form-grid,
   .employee-account-grid {
@@ -1035,6 +1261,21 @@
   .employee-form-actions,
   .employee-form-actions .profile-action-button {
     width: 100%;
+  }
+
+  .processing-pipeline-card {
+    padding: 16px;
+  }
+
+  .processing-pipeline-header,
+  .processing-pipeline-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .processing-pipeline-step {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
   }
 
   .employee-review-hero h1 {

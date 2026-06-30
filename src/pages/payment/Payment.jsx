@@ -259,15 +259,12 @@ function Payment() {
     [accounts, selectedAccountId, stateDraft],
   )
 
-  const numericAmount = useMemo(() => Number(amount), [amount])
-  const isAmountValid = amount.trim() !== '' && Number.isFinite(numericAmount) && numericAmount > 0
+  const isAmountValid = amount.trim() !== ''
   const hasSourceAccount = Boolean(selectedAccount)
   const selectedAccountBalance = hasSourceAccount ? getAccountBalance(selectedAccount) : 0
-  const hasSufficientBalance = hasSourceAccount && selectedAccountBalance >= numericAmount
   const shouldShowAmountError = isAmountTouched && !isAmountValid
   const shouldShowSourceError = isSourceTouched && !hasSourceAccount
-  const shouldShowBalanceError = isAmountValid && hasSourceAccount && !hasSufficientBalance
-  const canContinue = isAmountValid && hasSourceAccount && hasSufficientBalance
+  const canContinue = isAmountValid && hasSourceAccount
 
   const paymentDraft = useMemo(
     () => ({
@@ -648,7 +645,7 @@ function Payment() {
                     aria-describedby="amountFeedback"
                   />
                   <div id="amountFeedback" className="invalid-feedback">
-                    Enter an amount greater than 0.
+                    Amount is required.
                   </div>
                 </div>
               </label>
@@ -661,7 +658,7 @@ function Payment() {
             <label className="bank-field payment-source-field">
               <span>Debit Account</span>
               <select
-                className={`filter-select ${shouldShowSourceError || shouldShowBalanceError ? 'is-invalid' : ''}`}
+                className={`filter-select ${shouldShowSourceError ? 'is-invalid' : ''}`}
                 value={selectedAccountId}
                 disabled={isLoadingAccounts || accounts.length === 0}
                 onBlur={() => setIsSourceTouched(true)}
@@ -681,9 +678,7 @@ function Payment() {
                 ))}
               </select>
               <div id="sourceAccountFeedback" className="invalid-feedback payment-source-feedback">
-                {shouldShowBalanceError
-                  ? 'Selected account has insufficient balance for this amount.'
-                  : 'Select a source account.'}
+                Select a source account.
               </div>
             </label>
 

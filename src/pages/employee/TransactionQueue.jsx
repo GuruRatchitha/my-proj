@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeTransactions } from '../../api/employeeTransactions'
 
@@ -7,6 +7,7 @@ const statusOptions = ['All', 'Pending', 'Hold', 'Rejected', 'Approved', 'Proces
 const queueRefreshIntervalMs = 15000
 
 const getStatusClass = (status = '') => status.toLowerCase().replace(/\s+/g, '-')
+const getDisplayStatus = (status = '') => status || '-'
 
 function TransactionQueue() {
   const navigate = useNavigate()
@@ -16,46 +17,78 @@ function TransactionQueue() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const latestRequestIdRef = useRef(0)
+  const isMountedRef = useRef(false)
+  const isFullLoadingRef = useRef(false)
 
-  useEffect(() => {
-    let isMounted = true
-
-    const loadTransactions = async (showLoading = true) => {
-      try {
-        if (showLoading) {
-          setIsLoading(true)
-        }
-        setErrorMessage('')
-
-        const nextTransactions = await fetchEmployeeTransactions()
-
-        if (isMounted) {
-          setTransactions(nextTransactions)
-        }
-      } catch (error) {
-        if (isMounted) {
-          if (showLoading) {
-            setTransactions([])
-          }
-          setErrorMessage(error.message || 'Unable to load transaction queue.')
-        }
-      } finally {
-        if (isMounted && showLoading) {
-          setIsLoading(false)
-        }
-      }
+  const loadTransactions = useCallback(async (showLoading = true) => {
+    if (!showLoading && isFullLoadingRef.current) {
+      return
     }
 
+    const requestId = latestRequestIdRef.current + 1
+    latestRequestIdRef.current = requestId
+
+    try {
+      if (showLoading) {
+        isFullLoadingRef.current = true
+        setIsLoading(true)
+        setTransactions([])
+      }
+      setErrorMessage('')
+
+      const nextTransactions = await fetchEmployeeTransactions()
+
+      if (isMountedRef.current && requestId === latestRequestIdRef.current) {
+        setTransactions(nextTransactions)
+      }
+    } catch (error) {
+      if (!isMountedRef.current || requestId !== latestRequestIdRef.current) {
+        return
+      }
+
+      if (showLoading) {
+        setTransactions([])
+      }
+      setErrorMessage(error.message || 'Unable to load transaction queue.')
+    } finally {
+      if (isMountedRef.current && showLoading && requestId === latestRequestIdRef.current) {
+        setIsLoading(false)
+      }
+      if (showLoading && requestId === latestRequestIdRef.current) {
+        isFullLoadingRef.current = false
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    isMountedRef.current = true
     loadTransactions()
     const refreshTimer = window.setInterval(() => {
       loadTransactions(false)
     }, queueRefreshIntervalMs)
 
     return () => {
-      isMounted = false
+      isMountedRef.current = false
       window.clearInterval(refreshTimer)
     }
-  }, [])
+  }, [loadTransactions])
+
+  useEffect(() => {
+    const refreshVisibleQueue = () => {
+      if (document.visibilityState === 'visible') {
+        loadTransactions()
+      }
+    }
+
+    window.addEventListener('focus', refreshVisibleQueue)
+    document.addEventListener('visibilitychange', refreshVisibleQueue)
+
+    return () => {
+      window.removeEventListener('focus', refreshVisibleQueue)
+      document.removeEventListener('visibilitychange', refreshVisibleQueue)
+    }
+  }, [loadTransactions])
 
   const filteredTransactions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -170,7 +203,7 @@ function TransactionQueue() {
                   <td className="debit-text">{transaction.amount}</td>
                   <td>
                     <span className={`transaction-status ${getStatusClass(transaction.status)}`}>
-                      {transaction.status}
+                      {getDisplayStatus(transaction.status)}
                     </span>
                   </td>
                   <td>

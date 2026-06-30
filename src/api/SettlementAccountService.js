@@ -1,8 +1,8 @@
 import httpClient from './httpClient'
 
-const currencyFormatter = new Intl.NumberFormat('en-IN', {
+const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
-  currency: 'INR',
+  currency: 'USD',
   maximumFractionDigits: 2,
 })
 

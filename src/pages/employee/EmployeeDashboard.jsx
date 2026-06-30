@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeDashboard } from '../../api/employeeDashboard'
+import { fetchLatestSettlementTransactions } from '../../api/SettlementAccountService'
+import LatestSettlementTransactions from './LatestSettlementTransactions'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -57,6 +59,22 @@ function EmployeeDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [settlementTransactions, setSettlementTransactions] = useState([])
+  const [areSettlementsLoading, setAreSettlementsLoading] = useState(true)
+  const [settlementErrorMessage, setSettlementErrorMessage] = useState('')
+
+  const loadLatestSettlementTransactions = useCallback(async () => {
+    try {
+      setAreSettlementsLoading(true)
+      setSettlementErrorMessage('')
+      setSettlementTransactions(await fetchLatestSettlementTransactions())
+    } catch (error) {
+      setSettlementTransactions([])
+      setSettlementErrorMessage(error.message || 'Unable to load settlement transactions.')
+    } finally {
+      setAreSettlementsLoading(false)
+    }
+  }, [])
 
   const handleRetry = async () => {
     try {
@@ -100,6 +118,33 @@ function EmployeeDashboard() {
     }
 
     loadInitialDashboard()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    fetchLatestSettlementTransactions()
+      .then((transactions) => {
+        if (isMounted) {
+          setSettlementTransactions(transactions)
+          setSettlementErrorMessage('')
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setSettlementTransactions([])
+          setSettlementErrorMessage(error.message || 'Unable to load settlement transactions.')
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setAreSettlementsLoading(false)
+        }
+      })
 
     return () => {
       isMounted = false
@@ -195,6 +240,13 @@ function EmployeeDashboard() {
           ))}
         </section>
       )}
+
+      <LatestSettlementTransactions
+        transactions={settlementTransactions}
+        isLoading={areSettlementsLoading}
+        errorMessage={settlementErrorMessage}
+        onRetry={loadLatestSettlementTransactions}
+      />
     </div>
   )
 }

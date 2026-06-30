@@ -190,6 +190,16 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.routing-number-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.routing-number-control .profile-action-button {
+  min-height: 42px;
+}
+
 .employee-customer-actions {
   align-items: flex-end;
   flex-direction: column;
@@ -348,6 +358,55 @@
   color: rgba(255, 255, 255, 0.82);
 }
 
+.employee-latest-settlements {
+  overflow: hidden;
+  border: 1px solid #dce5ef;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 37, 61, 0.05);
+}
+
+.employee-latest-settlements-heading {
+  padding: 18px 20px;
+  border-bottom: 1px solid #e5edf5;
+}
+
+.employee-latest-settlements-heading h2 {
+  margin: 0;
+  color: #0a1220;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.employee-latest-settlements-table-wrap {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.employee-latest-settlements-table td,
+.employee-latest-settlements-table th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.employee-latest-settlements-state {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #536172;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.employee-latest-settlements-state.error {
+  color: #b83232;
+}
+
 .employee-channel-bar {
   min-height: 38px;
   display: inline-flex;
@@ -377,7 +436,7 @@
 }
 
 .employee-transaction-table {
-  min-width: 1020px;
+  min-width: 0;
 }
 
 .employee-row-actions {
@@ -401,13 +460,22 @@
 }
 
 .employee-customers-table {
-  min-width: 1400px;
+  min-width: 0;
 }
 
 .employee-customers-table tbody td {
   max-width: 230px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.employee-customers-table th:first-child,
+.employee-customers-table tbody td:first-child {
+  width: 72px;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .employee-customers-table tbody td:nth-child(2),
@@ -774,14 +842,16 @@
 }
 
 .employee-xml-panel pre {
-  min-width: 760px;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 18px;
   color: #dbeafe;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.6;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .settlement-account-page {
@@ -881,16 +951,17 @@
 }
 
 .settlement-table-toolbar {
-  grid-template-columns: minmax(190px, 1fr) minmax(210px, 1fr) 170px 170px 150px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .settlement-transaction-table {
-  min-width: 1760px;
+  min-width: 0;
 }
 
 .settlement-transaction-table td,
 .settlement-transaction-table th {
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .settlement-loading-state,
@@ -1018,6 +1089,10 @@
   }
 
   .employee-transaction-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .routing-number-control {
     grid-template-columns: 1fr;
   }
 

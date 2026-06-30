@@ -11,28 +11,21 @@ const isDebitedTransaction = (transactionType = '') =>
 const isCreditedTransaction = (transactionType = '') =>
   getNormalizedTransactionType(transactionType).includes('CREDIT')
 
-const getDisplayAccountNumber = (transaction) => {
-  if (isDebitedTransaction(transaction.transactionType)) {
-    return transaction.senderAccountNumber || '-'
-  }
+const getDisplayStatus = (transaction) =>
+  transaction.status || transaction.transactionType || '-'
 
-  if (isCreditedTransaction(transaction.transactionType)) {
+const getDisplayAccountNumber = (transaction) => {
+  const displayStatus = getDisplayStatus(transaction)
+
+  if (isDebitedTransaction(displayStatus)) {
     return transaction.beneficiaryAccountNumber || '-'
   }
 
+  if (isCreditedTransaction(displayStatus)) {
+    return transaction.senderAccountNumber || '-'
+  }
+
   return transaction.senderAccountNumber || transaction.beneficiaryAccountNumber || '-'
-}
-
-const getDisplayTransactionType = (transactionType = '') => {
-  if (isDebitedTransaction(transactionType)) {
-    return 'Amount Debited From Settlement'
-  }
-
-  if (isCreditedTransaction(transactionType)) {
-    return 'Amount Credited To Settlement'
-  }
-
-  return '-'
 }
 
 function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
@@ -129,7 +122,7 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
               <th>Payment ID</th>
               <th>Account Number</th>
               <th>Amount</th>
-              <th>Transaction Type</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -149,7 +142,7 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
                 <td>{transaction.paymentId || '-'}</td>
                 <td>{getDisplayAccountNumber(transaction)}</td>
                 <td className="debit-text">{transaction.formattedAmount}</td>
-                <td>{getDisplayTransactionType(transaction.transactionType)}</td>
+                <td>{getDisplayStatus(transaction)}</td>
               </tr>
             ))}
 

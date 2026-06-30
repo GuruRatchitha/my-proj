@@ -7,7 +7,6 @@ const customerColumns = [
   { key: 'panNumber', label: 'PAN Number' },
   { key: 'address', label: 'Address' },
   { key: 'townName', label: 'Town Name' },
-  { key: 'countryCode', label: 'Country Code' },
   { key: 'createdDate', label: 'Created Date' },
   { key: 'actions', label: 'Actions' },
 ]

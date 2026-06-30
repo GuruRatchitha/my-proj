@@ -1,4 +1,6 @@
 .bank-dashboard {
+  width: 100%;
+  max-width: 100%;
   height: 100vh;
   display: grid;
   grid-template-columns: 205px minmax(0, 1fr);
@@ -273,7 +275,9 @@
 
 .dashboard-content {
   min-width: 0;
+  max-width: 100%;
   height: 100vh;
+  overflow-x: clip;
   overflow-y: auto;
 }
 
@@ -360,6 +364,8 @@
 }
 
 .dashboard-main {
+  min-width: 0;
+  max-width: 100%;
   padding: 29px 24px 36px;
 }
 
@@ -860,7 +866,7 @@
 }
 
 .beneficiary-table {
-  min-width: 1040px;
+  min-width: 0;
 }
 
 .beneficiary-name-cell {
@@ -1362,12 +1368,14 @@
 }
 
 .transaction-table-wrap {
-  overflow-x: auto;
+  max-width: 100%;
   padding: 0;
 }
 
 .bank-table {
-  min-width: 980px;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
   color: #182235;
   vertical-align: middle;
 }
@@ -1380,7 +1388,7 @@
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .bank-table tbody td {
@@ -1388,7 +1396,7 @@
   border-bottom: 1px solid #edf2f7;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .bank-table tbody tr:last-child td {

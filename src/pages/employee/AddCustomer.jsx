@@ -10,7 +10,6 @@ const initialCustomerForm = {
   password: '',
   phoneNumber: '',
   fullName: '',
-  countryCode: '',
   townName: '',
 }
 
@@ -95,7 +94,6 @@ const normalizeCustomerDetails = (response = {}) => {
       password: firstValue(customer.password),
       phoneNumber: firstValue(customer.phoneNumber, customer.mobileNumber, customer.phone),
       fullName: getFullName(customer),
-      countryCode: firstValue(customer.countryCode),
       townName: firstValue(customer.townName, customer.city),
     },
     accounts: Array.isArray(accounts) && accounts.length > 0
@@ -219,7 +217,6 @@ function AddCustomer() {
       panCardNumber: 'PAN Card Number is required.',
       address: 'Address is required.',
       townName: 'Town Name is required.',
-      countryCode: 'Country Code is required.',
     }
 
     if (!isEditMode) {
@@ -298,7 +295,7 @@ function AddCustomer() {
     if (account.isExisting && account.accountId) {
       payload.accountId = Number.isNaN(Number(account.accountId)) ? account.accountId : Number(account.accountId)
     } else {
-      payload.balance = Number(account.initialBalance.toString().trim())
+      payload.initialBalance = Number(account.initialBalance.toString().trim())
     }
 
     if (account.isExisting && account.status.trim()) {
@@ -317,17 +314,12 @@ function AddCustomer() {
       panCardNumber: customerForm.panCardNumber.trim().toUpperCase(),
       address: customerForm.address.trim(),
       townName: customerForm.townName.trim(),
-      countryCode: customerForm.countryCode.trim(),
+      countryCode: 'US',
       accounts: accounts.map(buildAccountPayload),
     }
 
     if (isEditMode) {
       customerPayload.userId = Number.isNaN(Number(userId)) ? userId : Number(userId)
-    } else {
-      const primaryAccount = accounts[0]
-
-      customerPayload.initialBalance = Number(primaryAccount.initialBalance)
-      customerPayload.accountType = primaryAccount.accountType.trim()
     }
 
     if (customerForm.password) {
@@ -353,6 +345,7 @@ function AddCustomer() {
       setSubmitError('')
       if (import.meta.env.DEV) {
         console.log(`${isEditMode ? 'Update' : 'Create'} customer payload:`, customerPayload)
+        console.log('Accounts submitted:', customerPayload.accounts)
       }
 
       if (isEditMode) {
@@ -493,19 +486,6 @@ function AddCustomer() {
                   required
                 />
                 {formErrors.townName && <small className="field-error">{formErrors.townName}</small>}
-              </label>
-              <label className="bank-field">
-                <span>Country Code</span>
-                <input
-                  name="countryCode"
-                  type="text"
-                  value={customerForm.countryCode}
-                  onChange={handleFieldChange}
-                  placeholder="US"
-                  maxLength="3"
-                  required
-                />
-                {formErrors.countryCode && <small className="field-error">{formErrors.countryCode}</small>}
               </label>
             </div>
           </section>

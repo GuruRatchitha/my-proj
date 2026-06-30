@@ -10,76 +10,9 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: '2-digit',
-  year: 'numeric',
-})
-
-const timeFormatter = new Intl.DateTimeFormat('en-US', {
-  hour: '2-digit',
-  minute: '2-digit',
-})
-
 const firstValue = (...values) => values.find((value) => value || value === 0) ?? ''
 
-const unwrapCollection = (response, keys = []) => {
-  if (Array.isArray(response)) {
-    return response
-  }
-
-  const source = response?.data || response
-
-  if (Array.isArray(source)) {
-    return source
-  }
-
-  for (const key of keys) {
-    if (Array.isArray(source?.[key])) {
-      return source[key]
-    }
-  }
-
-  if (Array.isArray(source?.content)) {
-    return source.content
-  }
-
-  return []
-}
-
 const unwrapObject = (response) => response?.data || response || {}
-
-const formatDate = (value) => {
-  if (!value) {
-    return '-'
-  }
-
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date)
-}
-
-const formatTime = (value) => {
-  if (!value) {
-    return '-'
-  }
-
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '-' : timeFormatter.format(date)
-}
-
-const formatStatus = (value) => {
-  const normalized = (value || 'Pending').toString().trim().replace(/_/g, ' ').toLowerCase()
-
-  return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-const getStatusClass = (value) => formatStatus(value).toLowerCase().replace(/\s+/g, '-')
-
-const getFullName = (customer = {}) => {
-  const nameParts = [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' ')
-
-  return firstValue(customer.fullName, customer.userName, customer.name, nameParts, 'Customer')
-}
 
 const normalizeSummary = (response) => {
   const summary = unwrapObject(response)
@@ -94,77 +27,6 @@ const normalizeSummary = (response) => {
   }
 }
 
-const normalizeRecentCustomer = (customer = {}, index = 0) => ({
-  id: firstValue(customer.userId, customer.id, customer.email, `customer-${index}`),
-  name: getFullName(customer),
-  email: firstValue(customer.email, '-'),
-  phoneNumber: firstValue(customer.phoneNumber, customer.mobileNumber, customer.phone, '-'),
-  createdDate: formatDate(firstValue(customer.createdDate, customer.created_at, customer.createdOn)),
-})
-
-const normalizeBeneficiary = (beneficiary = {}, index = 0) => ({
-  id: firstValue(beneficiary.id, beneficiary.accountNumber, `beneficiary-${index}`),
-  customerName: firstValue(
-    beneficiary.customerName,
-    beneficiary.userName,
-    beneficiary.customer?.userName,
-    beneficiary.customer?.name,
-    'Customer',
-  ),
-  beneficiaryName: firstValue(beneficiary.beneficiaryName, beneficiary.name, '-'),
-  requestedDate: formatDate(firstValue(beneficiary.requestedDate, beneficiary.createdDate, beneficiary.createdAt)),
-  status: formatStatus(beneficiary.status),
-})
-
-const normalizeTransaction = (transaction = {}, index = 0) => {
-  const amount = Number(firstValue(transaction.amount, transaction.transferAmount, 0))
-
-  return {
-    id: firstValue(transaction.id, transaction.transactionId, transaction.transactionReference, `transaction-${index}`),
-    customer: firstValue(transaction.customerName, transaction.userName, transaction.senderName, transaction.debtorName, 'Customer'),
-    amount: currencyFormatter.format(amount),
-    type: formatStatus(firstValue(transaction.transactionType, transaction.type, transaction.paymentType, 'Transfer')),
-    status: formatStatus(firstValue(transaction.status, transaction.transferStatus, transaction.approvalStatus)),
-  }
-}
-
-const normalizeAccountStats = (response) => {
-  const stats = unwrapObject(response)
-
-  return [
-    { key: 'savings', label: 'Savings', value: Number(firstValue(stats.savings, stats.savingsAccounts, 0)) },
-    { key: 'current', label: 'Current', value: Number(firstValue(stats.current, stats.currentAccounts, 0)) },
-    { key: 'salary', label: 'Salary', value: Number(firstValue(stats.salary, stats.salaryAccounts, 0)) },
-  ]
-}
-
-const normalizeActivity = (activity = {}, index = 0) => {
-  const dateValue = firstValue(activity.date, activity.createdDate, activity.createdAt, activity.timestamp)
-
-  return {
-    id: firstValue(activity.id, activity.activityId, `activity-${index}`),
-    activity: firstValue(activity.activity, activity.message, activity.description, activity.action, 'Employee action recorded'),
-    date: formatDate(dateValue),
-    time: formatTime(dateValue),
-  }
-}
-
-const normalizeDashboardResponse = (response) => ({
-  summary: normalizeSummary(response.summary),
-  recentCustomers: unwrapCollection(response.recentCustomers, ['customers', 'recentCustomers'])
-    .slice(0, 5)
-    .map(normalizeRecentCustomer),
-  pendingBeneficiaries: unwrapCollection(response.pendingBeneficiaries, ['beneficiaries', 'requests'])
-    .slice(0, 5)
-    .map(normalizeBeneficiary),
-  pendingTransactions: unwrapCollection(response.pendingTransactions, ['transactions', 'requests'])
-    .slice(0, 5)
-    .map(normalizeTransaction),
-  accountStatistics: normalizeAccountStats(response.accountStatistics),
-  recentActivity: unwrapCollection(response.recentActivity, ['activities', 'recentActivity'])
-    .slice(0, 5)
-    .map(normalizeActivity),
-})
 
 const DashboardSkeleton = () => (
   <div className="employee-dashboard-skeleton" aria-label="Loading dashboard">
@@ -189,70 +51,9 @@ function SummaryCard({ title, value, subtitle, icon, tone = '' }) {
   )
 }
 
-function DashboardPanel({ title, actionLabel, onAction, children }) {
-  return (
-    <section className="employee-dashboard-panel">
-      <header className="employee-dashboard-panel-header">
-        <h2>{title}</h2>
-        {actionLabel && (
-          <button className="section-link" type="button" onClick={onAction}>
-            {actionLabel}
-          </button>
-        )}
-      </header>
-      {children}
-    </section>
-  )
-}
-
-function MiniTable({ columns, rows, emptyMessage }) {
-  return (
-    <div className="employee-dashboard-table-wrap">
-      <table className="table bank-table employee-dashboard-table mb-0">
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column.key}>{column.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              {columns.map((column) => (
-                <td key={column.key}>
-                  {column.status ? (
-                    <span className={`transaction-status ${getStatusClass(row[column.key])}`}>
-                      {row[column.key]}
-                    </span>
-                  ) : (
-                    row[column.key] || '-'
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={columns.length}>{emptyMessage}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
 function EmployeeDashboard() {
   const navigate = useNavigate()
-  const [dashboard, setDashboard] = useState({
-    summary: normalizeSummary({}),
-    recentCustomers: [],
-    pendingBeneficiaries: [],
-    pendingTransactions: [],
-    accountStatistics: normalizeAccountStats({}),
-    recentActivity: [],
-  })
+  const [summary, setSummary] = useState(() => normalizeSummary({}))
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -264,7 +65,7 @@ function EmployeeDashboard() {
 
       const response = await fetchEmployeeDashboard()
 
-      setDashboard(normalizeDashboardResponse(response))
+      setSummary(normalizeSummary(response.summary))
       setErrorMessage(response.warning || '')
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load employee dashboard.')
@@ -284,7 +85,7 @@ function EmployeeDashboard() {
         const response = await fetchEmployeeDashboard()
 
         if (isMounted) {
-          setDashboard(normalizeDashboardResponse(response))
+          setSummary(normalizeSummary(response.summary))
           setErrorMessage(response.warning || '')
         }
       } catch (error) {
@@ -308,49 +109,42 @@ function EmployeeDashboard() {
   const summaryCards = useMemo(() => [
     {
       title: 'Total Customers',
-      value: numberFormatter.format(dashboard.summary.totalCustomers),
+      value: numberFormatter.format(summary.totalCustomers),
       subtitle: 'Registered customers',
       icon: 'bi bi-people',
     },
     {
       title: 'Total Accounts',
-      value: numberFormatter.format(dashboard.summary.totalAccounts),
+      value: numberFormatter.format(summary.totalAccounts),
       subtitle: 'Open bank accounts',
       icon: 'bi bi-wallet2',
     },
     {
       title: 'Total Bank Balance',
-      value: currencyFormatter.format(dashboard.summary.totalBalance),
+      value: currencyFormatter.format(summary.totalBalance),
       subtitle: 'Across active accounts',
       icon: 'bi bi-bank',
       tone: 'balance',
     },
     {
       title: 'Pending Beneficiaries',
-      value: numberFormatter.format(dashboard.summary.pendingBeneficiaries),
+      value: numberFormatter.format(summary.pendingBeneficiaries),
       subtitle: 'Awaiting review',
       icon: 'bi bi-person-check',
     },
     {
       title: 'Pending Transactions',
-      value: numberFormatter.format(dashboard.summary.pendingTransactions),
+      value: numberFormatter.format(summary.pendingTransactions),
       subtitle: 'Queued decisions',
       icon: 'bi bi-arrow-left-right',
     },
     {
       title: "Today's New Customers",
-      value: numberFormatter.format(dashboard.summary.todayCustomers),
+      value: numberFormatter.format(summary.todayCustomers),
       subtitle: 'Created today',
       icon: 'bi bi-person-plus',
     },
-  ], [dashboard.summary])
-
-  const quickActions = [
-    { label: 'Add Customer', icon: 'bi bi-person-plus', to: '/employee/customers/new' },
-    { label: 'View Customers', icon: 'bi bi-people', to: '/employee/customers' },
-    { label: 'Beneficiary Queue', icon: 'bi bi-person-check', to: '/employee/beneficiary-queue' },
-    { label: 'Transaction Queue', icon: 'bi bi-arrow-left-right', to: '/employee/transaction-queue' },
-  ]
+  ], [summary])
 
   const handleSearchSubmit = (event) => {
     event.preventDefault()
@@ -394,89 +188,12 @@ function EmployeeDashboard() {
         </div>
       )}
 
-      {isLoading ? (
-        <DashboardSkeleton />
-      ) : (
-        <>
-          <section className="employee-summary-grid" aria-label="Banking summary">
-            {summaryCards.map((card) => (
-              <SummaryCard {...card} key={card.title} />
-            ))}
-          </section>
-
-          <section className="employee-quick-actions" aria-label="Quick actions">
-            {quickActions.map((action) => (
-              <button type="button" onClick={() => navigate(action.to)} key={action.label}>
-                <i className={action.icon} aria-hidden="true"></i>
-                <span>{action.label}</span>
-              </button>
-            ))}
-          </section>
-
-          <div className="employee-dashboard-grid">
-            <DashboardPanel title="Recent Customers" actionLabel="View All" onAction={() => navigate('/employee/customers')}>
-              <MiniTable
-                columns={[
-                  { key: 'name', label: 'Name' },
-                  { key: 'email', label: 'Email' },
-                  { key: 'phoneNumber', label: 'Phone Number' },
-                  { key: 'createdDate', label: 'Created Date' },
-                ]}
-                rows={dashboard.recentCustomers}
-                emptyMessage="No recent customers found."
-              />
-            </DashboardPanel>
-
-            <DashboardPanel title="Pending Beneficiary Requests" actionLabel="View Queue" onAction={() => navigate('/employee/beneficiary-queue')}>
-              <MiniTable
-                columns={[
-                  { key: 'customerName', label: 'Customer Name' },
-                  { key: 'beneficiaryName', label: 'Beneficiary Name' },
-                  { key: 'requestedDate', label: 'Requested Date' },
-                  { key: 'status', label: 'Status', status: true },
-                ]}
-                rows={dashboard.pendingBeneficiaries}
-                emptyMessage="No pending beneficiary requests."
-              />
-            </DashboardPanel>
-
-            <DashboardPanel title="Pending Transactions" actionLabel="View Queue" onAction={() => navigate('/employee/transaction-queue')}>
-              <MiniTable
-                columns={[
-                  { key: 'customer', label: 'Customer' },
-                  { key: 'amount', label: 'Amount' },
-                  { key: 'type', label: 'Transaction Type' },
-                  { key: 'status', label: 'Status', status: true },
-                ]}
-                rows={dashboard.pendingTransactions}
-                emptyMessage="No pending transactions."
-              />
-            </DashboardPanel>
-
-            <DashboardPanel title="Account Type Statistics">
-              <div className="employee-account-stat-grid">
-                {dashboard.accountStatistics.map((stat) => (
-                  <article className="employee-account-stat" key={stat.key}>
-                    <span>{stat.label}</span>
-                    <strong>{numberFormatter.format(stat.value)}</strong>
-                  </article>
-                ))}
-              </div>
-            </DashboardPanel>
-          </div>
-
-          <DashboardPanel title="Recent Activity">
-            <MiniTable
-              columns={[
-                { key: 'activity', label: 'Activity' },
-                { key: 'date', label: 'Date' },
-                { key: 'time', label: 'Time' },
-              ]}
-              rows={dashboard.recentActivity}
-              emptyMessage="No recent activity yet."
-            />
-          </DashboardPanel>
-        </>
+      {isLoading ? <DashboardSkeleton /> : (
+        <section className="employee-summary-grid" aria-label="Banking summary">
+          {summaryCards.map((card) => (
+            <SummaryCard {...card} key={card.title} />
+          ))}
+        </section>
       )}
     </div>
   )

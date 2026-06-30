@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   approveEmployeeTransaction,
+  fetchEmployeeTransactionAdmi002,
   fetchEmployeeTransaction,
+  fetchEmployeeTransactionPacs002,
   fetchEmployeeTransactionXml,
   rejectEmployeeTransaction,
 } from '../../api/employeeTransactions'
@@ -34,8 +36,12 @@ const detailSections = [
 
 const getStatusClass = (status = '') => status.toLowerCase().replace(/\s+/g, '-')
 const rejectedXmlMessage = 'Transaction rejected. PACS.008 XML was not generated.'
+const pacs002PendingMessage = 'The PACS.002 has not been received yet.'
+const admi002PendingMessage = 'No ADMI.002 message has been received for this transaction.'
+const getHttpStatusText = (status) => status || 'unavailable'
 
-const isFinalStatus = (status = '') => ['APPROVED', 'REJECTED'].includes(status.toUpperCase())
+const isFinalStatus = (status = '') =>
+  ['APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED'].includes(status.toUpperCase())
 const isRejectedStatus = (status = '') => status.toUpperCase() === 'REJECTED'
 
 function DetailCard({ title, fields, source }) {
@@ -54,6 +60,39 @@ function DetailCard({ title, fields, source }) {
   )
 }
 
+const getXmlElementsByLocalName = (source, tagName) =>
+  Array.from(source.getElementsByTagName('*')).filter((element) => element.localName === tagName)
+
+const getAdmi002RejectReason = (xmlContent) => {
+  if (!xmlContent || typeof window === 'undefined' || !window.DOMParser) {
+    return null
+  }
+
+  const xmlDocument = new window.DOMParser().parseFromString(xmlContent, 'application/xml')
+
+  if (xmlDocument.getElementsByTagName('parsererror').length > 0) {
+    return null
+  }
+
+  const rejectingPartyReason = getXmlElementsByLocalName(xmlDocument, 'RjctgPtyRsn')[0]
+
+  if (!rejectingPartyReason) {
+    return null
+  }
+
+  const reasonCode = getXmlElementsByLocalName(rejectingPartyReason, 'Cd')[0]?.textContent?.trim() || ''
+  const reasonDescription = getXmlElementsByLocalName(rejectingPartyReason, 'RsnDesc')[0]?.textContent?.trim() || ''
+
+  if (!reasonDescription) {
+    return null
+  }
+
+  return {
+    code: reasonCode || '-',
+    description: reasonDescription || '-',
+  }
+}
+
 function TransactionDetails() {
   const { transactionReference = '' } = useParams()
   const location = useLocation()
@@ -67,6 +106,16 @@ function TransactionDetails() {
   const [activeAction, setActiveAction] = useState('')
   const [pacs008Content, setPacs008Content] = useState('')
   const [hasRequestedPacs008, setHasRequestedPacs008] = useState(false)
+  const [pacs002Content, setPacs002Content] = useState('')
+  const [isPacs002Loading, setIsPacs002Loading] = useState(false)
+  const [hasRequestedPacs002, setHasRequestedPacs002] = useState(false)
+  const [pacs002Status, setPacs002Status] = useState('idle')
+  const [pacs002ErrorStatus, setPacs002ErrorStatus] = useState('')
+  const [admi002Content, setAdmi002Content] = useState('')
+  const [isAdmi002Loading, setIsAdmi002Loading] = useState(false)
+  const [hasRequestedAdmi002, setHasRequestedAdmi002] = useState(false)
+  const [admi002Status, setAdmi002Status] = useState('idle')
+  const [admi002ErrorMessage, setAdmi002ErrorMessage] = useState('')
 
   const transactionId = decodeURIComponent(transactionReference)
 
@@ -111,6 +160,63 @@ function TransactionDetails() {
     }
   }, [transaction?.status, transactionId])
 
+  const loadPacs002Xml = useCallback(async () => {
+    setIsPacs002Loading(true)
+    setHasRequestedPacs002(true)
+    setPacs002Status('loading')
+    setPacs002ErrorStatus('')
+
+    try {
+      const nextPacs002Content = await fetchEmployeeTransactionPacs002(transactionId)
+      setPacs002Content(nextPacs002Content)
+      setPacs002Status(nextPacs002Content ? 'ready' : 'empty')
+      return nextPacs002Content
+    } catch (error) {
+      setPacs002Content('')
+      if (error.status === 404) {
+        setPacs002Status('empty')
+        return ''
+      }
+
+      setPacs002ErrorStatus(getHttpStatusText(error.status))
+      setPacs002Status('error')
+      return ''
+    } finally {
+      setIsPacs002Loading(false)
+    }
+  }, [transactionId])
+
+  const loadAdmi002Xml = useCallback(async () => {
+    if (admi002Status === 'ready' && admi002Content) {
+      return admi002Content
+    }
+
+    setIsAdmi002Loading(true)
+    setHasRequestedAdmi002(true)
+    setAdmi002Status('loading')
+    setAdmi002ErrorMessage('')
+
+    try {
+      const nextAdmi002Content = await fetchEmployeeTransactionAdmi002(transactionId)
+      setAdmi002Content(nextAdmi002Content)
+      setAdmi002Status(nextAdmi002Content ? 'ready' : 'empty')
+      return nextAdmi002Content
+    } catch (error) {
+      setAdmi002Content('')
+
+      if (error.status === 404) {
+        setAdmi002Status('empty')
+        return ''
+      }
+
+      setAdmi002ErrorMessage(error.message || 'Unable to load ADMI.002 XML.')
+      setAdmi002Status('error')
+      return ''
+    } finally {
+      setIsAdmi002Loading(false)
+    }
+  }, [admi002Content, admi002Status, transactionId])
+
   useEffect(() => {
     let isMounted = true
 
@@ -119,7 +225,15 @@ function TransactionDetails() {
         setIsLoading(true)
         setErrorMessage('')
         setPacs008Content('')
+        setPacs002Content('')
+        setAdmi002Content('')
         setHasRequestedPacs008(false)
+        setHasRequestedPacs002(false)
+        setHasRequestedAdmi002(false)
+        setPacs002Status('idle')
+        setPacs002ErrorStatus('')
+        setAdmi002Status('idle')
+        setAdmi002ErrorMessage('')
 
         const nextTransaction = await fetchEmployeeTransaction(transactionId)
 
@@ -168,6 +282,26 @@ function TransactionDetails() {
     }
   }, [activeTab, hasRequestedPacs008, isXmlLoading, loadPacs008Xml, transaction])
 
+  useEffect(() => {
+    if (activeTab === 'pacs002' && !hasRequestedPacs002 && !isPacs002Loading) {
+      const loadTimer = window.setTimeout(() => {
+        loadPacs002Xml()
+      }, 0)
+
+      return () => window.clearTimeout(loadTimer)
+    }
+  }, [activeTab, hasRequestedPacs002, isPacs002Loading, loadPacs002Xml])
+
+  useEffect(() => {
+    if (activeTab === 'admi002' && !hasRequestedAdmi002 && !isAdmi002Loading) {
+      const loadTimer = window.setTimeout(() => {
+        loadAdmi002Xml()
+      }, 0)
+
+      return () => window.clearTimeout(loadTimer)
+    }
+  }, [activeTab, hasRequestedAdmi002, isAdmi002Loading, loadAdmi002Xml])
+
   const handleReviewAction = async (action) => {
     if (!transaction || activeAction || isFinalStatus(transaction.status)) {
       return
@@ -181,14 +315,30 @@ function TransactionDetails() {
       if (action === 'approve') {
         await approveEmployeeTransaction(transaction.id || transaction.reference)
         setHasRequestedPacs008(false)
+        setHasRequestedPacs002(false)
+        setHasRequestedAdmi002(false)
         setPacs008Content('')
+        setPacs002Content('')
+        setAdmi002Content('')
+        setPacs002Status('idle')
+        setPacs002ErrorStatus('')
+        setAdmi002Status('idle')
+        setAdmi002ErrorMessage('')
         setTransaction((currentTransaction) => ({
           ...currentTransaction,
-          status: 'Approved',
+          status: 'Processing',
         }))
         setActionMessage('Transaction approved successfully.')
       } else {
         await rejectEmployeeTransaction(transaction.id || transaction.reference)
+        setHasRequestedPacs002(false)
+        setHasRequestedAdmi002(false)
+        setPacs002Content('')
+        setAdmi002Content('')
+        setPacs002Status('idle')
+        setPacs002ErrorStatus('')
+        setAdmi002Status('idle')
+        setAdmi002ErrorMessage('')
         setTransaction((currentTransaction) => ({
           ...currentTransaction,
           status: 'Rejected',
@@ -250,6 +400,7 @@ function TransactionDetails() {
   ]
   const isActionInProgress = Boolean(activeAction)
   const areReviewActionsDisabled = isActionInProgress || isFinalStatus(transaction.status)
+  const admi002RejectReason = getAdmi002RejectReason(admi002Content)
 
   return (
     <div className="dashboard-main employee-review-page">
@@ -350,9 +501,23 @@ function TransactionDetails() {
             type="button"
             role="tab"
             aria-selected={activeTab === 'pacs002'}
-            onClick={() => setActiveTab('pacs002')}
+            onClick={() => {
+              setActiveTab('pacs002')
+            }}
           >
             PACS.002
+          </button>
+          <button
+            className={activeTab === 'admi002' ? 'active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'admi002'}
+            aria-busy={isAdmi002Loading}
+            onClick={() => {
+              setActiveTab('admi002')
+            }}
+          >
+            ADMI.002
           </button>
         </div>
 
@@ -369,7 +534,83 @@ function TransactionDetails() {
           </div>
         )}
 
-        {activeTab === 'pacs002' && <div className="employee-pacs002-panel" role="tabpanel"></div>}
+        {activeTab === 'pacs002' && (
+          <div className="employee-xml-panel" role="tabpanel">
+            {isPacs002Loading && (
+              <div className="employee-xml-loading" role="status" aria-live="polite">
+                Loading PACS.002 XML...
+              </div>
+            )}
+            {pacs002Status === 'error' ? (
+              <div className="employee-xml-state error" role="alert">
+                <strong>Unable to load PACS.002 XML.</strong>
+                <span>HTTP status: {pacs002ErrorStatus}</span>
+                <button
+                  className="profile-action-button secondary-action"
+                  type="button"
+                  onClick={loadPacs002Xml}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : pacs002Status === 'empty' ? (
+              <div className="employee-xml-state">
+                <strong>{pacs002PendingMessage}</strong>
+              </div>
+            ) : (
+              <pre>
+                <code>{pacs002Content}</code>
+              </pre>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'admi002' && (
+          <div className="employee-xml-panel" role="tabpanel">
+            {isAdmi002Loading && (
+              <div className="employee-xml-loading" role="status" aria-live="polite">
+                Loading ADMI.002 XML...
+              </div>
+            )}
+            {admi002Status === 'error' ? (
+              <div className="employee-xml-state error" role="alert">
+                <strong>Unable to load ADMI.002 XML.</strong>
+                <span>{admi002ErrorMessage}</span>
+                <button
+                  className="profile-action-button secondary-action"
+                  type="button"
+                  onClick={loadAdmi002Xml}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : admi002Status === 'empty' ? (
+              <div className="employee-xml-state">
+                <strong>{admi002PendingMessage}</strong>
+              </div>
+            ) : (
+              <>
+                {admi002RejectReason && (
+                  <div className="employee-xml-summary">
+                    <dl>
+                      <div>
+                        <dt>Reject Code:</dt>
+                        <dd>{admi002RejectReason.code}</dd>
+                      </div>
+                      <div>
+                        <dt>Reject Description:</dt>
+                        <dd>{admi002RejectReason.description}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
+                <pre>
+                  <code>{admi002Content}</code>
+                </pre>
+              </>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

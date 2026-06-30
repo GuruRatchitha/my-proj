@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeTransactions } from '../../api/employeeTransactions'
 
 const rowsPerPage = 10
-const statusOptions = ['All', 'Pending', 'Hold', 'Rejected', 'Approved']
+const statusOptions = ['All', 'Pending', 'Hold', 'Rejected', 'Approved', 'Processing', 'Completed', 'Failed']
+const queueRefreshIntervalMs = 15000
 
 const getStatusClass = (status = '') => status.toLowerCase().replace(/\s+/g, '-')
 
@@ -19,9 +20,11 @@ function TransactionQueue() {
   useEffect(() => {
     let isMounted = true
 
-    const loadTransactions = async () => {
+    const loadTransactions = async (showLoading = true) => {
       try {
-        setIsLoading(true)
+        if (showLoading) {
+          setIsLoading(true)
+        }
         setErrorMessage('')
 
         const nextTransactions = await fetchEmployeeTransactions()
@@ -31,20 +34,26 @@ function TransactionQueue() {
         }
       } catch (error) {
         if (isMounted) {
-          setTransactions([])
+          if (showLoading) {
+            setTransactions([])
+          }
           setErrorMessage(error.message || 'Unable to load transaction queue.')
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && showLoading) {
           setIsLoading(false)
         }
       }
     }
 
     loadTransactions()
+    const refreshTimer = window.setInterval(() => {
+      loadTransactions(false)
+    }, queueRefreshIntervalMs)
 
     return () => {
       isMounted = false
+      window.clearInterval(refreshTimer)
     }
   }, [])
 
@@ -165,13 +174,15 @@ function TransactionQueue() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      className="employee-open-link"
-                      type="button"
-                      onClick={() => handleOpenTransaction(transaction)}
-                    >
-                      Open &rarr;
-                    </button>
+                    <div className="employee-row-actions">
+                      <button
+                        className="employee-open-link"
+                        type="button"
+                        onClick={() => handleOpenTransaction(transaction)}
+                      >
+                        Open &rarr;
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

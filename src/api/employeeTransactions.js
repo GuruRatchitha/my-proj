@@ -114,11 +114,23 @@ const getValidDate = (value) => {
 const normalizeStatus = (status) => {
   const normalizedStatus = (status || '').toString().trim().toUpperCase()
 
-  if (normalizedStatus === 'APPROVED' || normalizedStatus === 'RELEASED' || normalizedStatus === 'COMPLETED') {
+  if (normalizedStatus === 'COMPLETED') {
+    return 'Completed'
+  }
+
+  if (normalizedStatus === 'FAILED') {
+    return 'Failed'
+  }
+
+  if (normalizedStatus === 'PROCESSING') {
+    return 'Processing'
+  }
+
+  if (normalizedStatus === 'APPROVED' || normalizedStatus === 'RELEASED') {
     return 'Approved'
   }
 
-  if (normalizedStatus === 'REJECTED' || normalizedStatus === 'FAILED') {
+  if (normalizedStatus === 'REJECTED') {
     return 'Rejected'
   }
 
@@ -170,7 +182,7 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
     rawAmount,
     amount: currencyFormatter.format(rawAmount),
     currency: paymentDetails.currency || transaction.currency || 'USD',
-    status: normalizeStatus(getFirstValue(paymentDetails.status, transaction.transferStatus, transaction.status, transaction.approvalStatus)),
+    status: normalizeStatus(getFirstValue(transaction.status, paymentDetails.status, transaction.transferStatus, transaction.approvalStatus)),
     paymentDate: formatDate(paymentDate),
     paymentDateValue: validPaymentDate ? validPaymentDate.toISOString().slice(0, 10) : '',
     isoPaymentDate: validPaymentDate ? validPaymentDate.toISOString() : new Date().toISOString(),
@@ -283,6 +295,36 @@ export const fetchEmployeeTransactionXml = async (transactionReference) => {
   )
 
   return normalizePacs008Response(response)
+}
+
+export const fetchEmployeeTransactionPacs002 = async (transactionReference) => {
+  const response = await httpClient.get(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/pacs002`,
+    {
+      headers: {
+        Accept: 'application/xml, text/xml, application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
+
+  return response == null ? '' : String(response)
+}
+
+export const fetchEmployeeTransactionAdmi002 = async (transactionReference) => {
+  const response = await httpClient.get(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/admi002`,
+    {
+      headers: {
+        Accept: 'application/xml, text/xml, application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
+
+  return response == null ? '' : String(response)
 }
 
 export const approveEmployeeTransaction = async (transactionReference) => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeDashboard } from '../../api/employeeDashboard'
 import { fetchLatestSettlementTransactions } from '../../api/SettlementAccountService'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import LatestSettlementTransactions from './LatestSettlementTransactions'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -31,10 +32,8 @@ const normalizeSummary = (response) => {
 
 
 const DashboardSkeleton = () => (
-  <div className="employee-dashboard-skeleton" aria-label="Loading dashboard">
-    {Array.from({ length: 6 }, (_, index) => (
-      <span className="dashboard-skeleton-card" key={index}></span>
-    ))}
+  <div className="employee-dashboard-skeleton">
+    <LoadingSpinner label="Loading dashboard" />
   </div>
 )
 

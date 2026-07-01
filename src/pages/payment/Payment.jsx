@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { getStoredCurrentUser, getStoredUserId } from '../../api/currentUser'
 import { makePayment } from '../../api/payments'
 import { fetchDashboardSummary } from '../../api/transactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -481,10 +482,7 @@ function Payment() {
                   onClick={handleConfirmPayment}
                 >
                   {isSubmitting ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                      Submitting...
-                    </>
+                    <LoadingSpinner label="Submitting" size="sm" variant="button" />
                   ) : (
                     <>
                       <i className="bi bi-check2-circle" aria-hidden="true"></i>
@@ -653,7 +651,9 @@ function Payment() {
 
             <div className="payment-subsection-heading">
               <h2>Source Account</h2>
-              {isLoadingAccounts && <p>Loading accounts...</p>}
+              {isLoadingAccounts && (
+                <LoadingSpinner label="Loading accounts" size="sm" variant="inline" />
+              )}
             </div>
             <label className="bank-field payment-source-field">
               <span>Debit Account</span>

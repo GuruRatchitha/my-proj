@@ -9,6 +9,7 @@ import {
   fetchEmployeeTransactionXml,
   rejectEmployeeTransaction,
 } from '../../api/employeeTransactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const detailSections = [
   {
@@ -305,7 +306,7 @@ function ProcessingPipeline({ steps, isLoading, errorMessage }) {
           <span>{steps.length} Steps</span>
           {isLoading && (
             <span className="processing-pipeline-refresh" role="status">
-              Refreshing
+              <LoadingSpinner label="Refreshing" size="sm" variant="inline" />
             </span>
           )}
         </div>
@@ -326,7 +327,7 @@ function ProcessingPipeline({ steps, isLoading, errorMessage }) {
             >
               <div className={`processing-pipeline-marker ${visualState}`}>
                 {visualState === 'running' ? (
-                  <span className="processing-pipeline-spinner" aria-hidden="true" />
+                  <LoadingSpinner label="Processing" size="sm" variant="inline" showLabel={false} />
                 ) : (
                   <i
                     className={`bi ${
@@ -717,7 +718,9 @@ function TransactionDetails() {
   if (isLoading) {
     return (
       <div className="dashboard-main">
-        <p className="dashboard-state">Loading transaction details...</p>
+        <p className="dashboard-state">
+          <LoadingSpinner label="Loading transaction details" variant="inline" />
+        </p>
       </div>
     )
   }
@@ -781,7 +784,9 @@ function TransactionDetails() {
             disabled={areReviewActionsDisabled}
             onClick={() => handleReviewAction('reject')}
           >
-            {activeAction === 'reject' ? 'Rejecting...' : 'Reject'}
+            {activeAction === 'reject' ? (
+              <LoadingSpinner label="Rejecting" size="sm" variant="button" />
+            ) : 'Reject'}
           </button>
           <button
             className="profile-action-button primary-action"
@@ -789,7 +794,9 @@ function TransactionDetails() {
             disabled={areReviewActionsDisabled}
             onClick={() => handleReviewAction('approve')}
           >
-            {activeAction === 'approve' ? 'Approving...' : 'Approve'}
+            {activeAction === 'approve' ? (
+              <LoadingSpinner label="Approving" size="sm" variant="button" />
+            ) : 'Approve'}
           </button>
         </div>
       </section>
@@ -879,19 +886,19 @@ function TransactionDetails() {
 
           {!hasAvailableXml && (
             <div className="employee-xml-state">
-              <strong>
-                {isXmlLoading || isPacs002Loading || isAdmi002Loading
-                  ? 'Loading available XML messages...'
-                  : 'No XML messages are available for this transaction.'}
-              </strong>
+              {isXmlLoading || isPacs002Loading || isAdmi002Loading ? (
+                <LoadingSpinner label="Loading available XML messages" variant="dark" />
+              ) : (
+                <strong>No XML messages are available for this transaction.</strong>
+              )}
             </div>
           )}
 
           {visibleActiveTab === 'xml' && isPacs008Available && (
             <div className="employee-xml-panel" role="tabpanel">
               {isXmlLoading && (
-                <div className="employee-xml-loading" role="status" aria-live="polite">
-                  Loading PACS.008 XML...
+                <div className="employee-xml-loading">
+                  <LoadingSpinner label="Loading PACS.008 XML" size="sm" variant="dark" />
                 </div>
               )}
               <pre>
@@ -903,8 +910,8 @@ function TransactionDetails() {
           {visibleActiveTab === 'pacs002' && isPacs002Available && (
             <div className="employee-xml-panel" role="tabpanel">
               {isPacs002Loading && (
-                <div className="employee-xml-loading" role="status" aria-live="polite">
-                  Loading PACS.002 XML...
+                <div className="employee-xml-loading">
+                  <LoadingSpinner label="Loading PACS.002 XML" size="sm" variant="dark" />
                 </div>
               )}
               {pacs002Status === 'error' ? (
@@ -934,8 +941,8 @@ function TransactionDetails() {
           {visibleActiveTab === 'admi002' && isAdmi002Available && (
             <div className="employee-xml-panel" role="tabpanel">
               {isAdmi002Loading && (
-                <div className="employee-xml-loading" role="status" aria-live="polite">
-                  Loading ADMI.002 XML...
+                <div className="employee-xml-loading">
+                  <LoadingSpinner label="Loading ADMI.002 XML" size="sm" variant="dark" />
                 </div>
               )}
               {admi002Status === 'error' ? (

@@ -8,6 +8,7 @@ import {
   storeCurrentUser,
   storeUserId,
 } from '../../api/currentUser'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import './login.css'
 
 const initialForm = {
@@ -286,8 +287,14 @@ function LoginPage() {
                 </div>
 
                 <button type="submit" className="sign-in-button" disabled={isSubmitting}>
-                  <span>{isSubmitting ? 'Signing in...' : 'Sign in'}</span>
-                  <i className="bi bi-arrow-right" aria-hidden="true"></i>
+                  {isSubmitting ? (
+                    <LoadingSpinner label="Signing in" size="sm" variant="button" />
+                  ) : (
+                    <>
+                      <span>Sign in</span>
+                      <i className="bi bi-arrow-right" aria-hidden="true"></i>
+                    </>
+                  )}
                 </button>
               </form>
 

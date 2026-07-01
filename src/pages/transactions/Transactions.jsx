@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchTransactions } from '../../api/transactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPage = 10
 const statusOptions = ['All', 'Completed', 'Pending', 'Failed']
@@ -116,7 +117,6 @@ function Transactions() {
 
       <section className="transactions-section compact-transactions-section">
         {errorMessage && <p className="dashboard-state error">{errorMessage}</p>}
-        {isLoading && <p className="dashboard-state">Loading transactions...</p>}
 
         <div className="table-toolbar">
           <div className="search-control">
@@ -169,7 +169,16 @@ function Transactions() {
               </tr>
             </thead>
             <tbody>
-              {paginatedTransactions.map((transaction) => (
+              {isLoading && (
+                <tr>
+                  <td colSpan="8">
+                    <div className="table-loading-state">
+                      <LoadingSpinner label="Loading transactions" />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && paginatedTransactions.map((transaction) => (
                 <tr key={transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
                   <td>{transaction.id}</td>
                   <td>{transaction.date}</td>

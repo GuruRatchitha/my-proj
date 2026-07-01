@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchDashboardSummary, fetchTransactions } from '../../api/transactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPage = 5
 
@@ -182,12 +183,6 @@ function Dashboard() {
         </div>
       </section>
 
-      {isDashboardLoading && (
-        <div className="section-loader" role="status" aria-live="polite">
-          <span className="section-loader-spinner" aria-hidden="true"></span>
-          <span>Loading dashboard...</span>
-        </div>
-      )}
       {dashboardError && <p className="dashboard-state error">{dashboardError}</p>}
 
       <section className="transactions-section compact-transactions-section">
@@ -212,7 +207,16 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {paginatedTransactions.map((transaction) => (
+              {isDashboardLoading && (
+                <tr>
+                  <td colSpan="7">
+                    <div className="table-loading-state">
+                      <LoadingSpinner label="Loading recent transactions" />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!isDashboardLoading && paginatedTransactions.map((transaction) => (
                 <tr key={transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
                   <td>{transaction.id || '-'}</td>
                   <td>{transaction.date}</td>

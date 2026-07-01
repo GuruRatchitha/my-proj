@@ -24,43 +24,109 @@
   line-height: 1;
 }
 
-.app-loader-backdrop {
-  position: fixed;
-  z-index: 100;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(243, 247, 251, 0.62);
-  backdrop-filter: blur(2px);
+.loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #174b8f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.app-loader {
+.loading-spinner-ring {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #d9e8fb;
+  border-top-color: #1763c7;
+  border-radius: 999px;
+  animation: app-loader-spin 800ms linear infinite;
+  flex: 0 0 auto;
+}
+
+.loading-spinner-sm .loading-spinner-ring {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.loading-spinner-lg .loading-spinner-ring {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.loading-spinner-label {
+  white-space: nowrap;
+}
+
+.loading-spinner-card,
+.loading-spinner-section {
   min-width: 132px;
   min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 11px;
   padding: 0 18px;
   border: 1px solid #dce5ef;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #ffffff;
-  color: #174b8f;
   box-shadow: 0 16px 42px rgba(15, 37, 61, 0.16);
 }
 
-.app-loader strong {
-  font-size: 12px;
-  font-weight: 900;
+.loading-spinner-section {
+  width: 100%;
+  min-height: 58px;
+  box-shadow: 0 8px 24px rgba(15, 37, 61, 0.05);
 }
 
-.app-loader-spinner {
-  width: 18px;
-  height: 18px;
-  border: 3px solid #d9e8fb;
-  border-top-color: #1763c7;
-  border-radius: 50%;
-  animation: app-loader-spin 800ms linear infinite;
+.loading-spinner-inline {
+  min-height: 24px;
+}
+
+.loading-spinner-button {
+  color: inherit;
+}
+
+.loading-spinner-button .loading-spinner-ring {
+  border-color: rgba(255, 255, 255, 0.45);
+  border-top-color: currentColor;
+}
+
+.secondary-action .loading-spinner-button .loading-spinner-ring {
+  border-color: rgba(23, 99, 199, 0.18);
+  border-top-color: currentColor;
+}
+
+.loading-spinner-dark {
+  color: #bfdbfe;
+}
+
+.loading-spinner-dark .loading-spinner-ring {
+  border-color: rgba(191, 219, 254, 0.28);
+  border-top-color: #bfdbfe;
+}
+
+.section-loader {
+  margin: -2px 0 18px;
+}
+
+.dashboard-state .loading-spinner,
+.section-loader .loading-spinner {
+  width: 100%;
+}
+
+.payment-subsection-heading .loading-spinner {
+  justify-content: flex-start;
+}
+
+.table-loading-state {
+  min-height: 238px;
+  display: grid;
+  place-items: center;
+  color: #536172;
+  text-align: center;
 }
 
 @keyframes app-loader-spin {

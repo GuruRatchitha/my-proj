@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeTransactions } from '../../api/employeeTransactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPage = 10
 const statusOptions = ['All', 'Pending', 'Hold', 'Rejected', 'Approved', 'Processing', 'Completed', 'Failed']
@@ -63,13 +64,16 @@ function TransactionQueue() {
 
   useEffect(() => {
     isMountedRef.current = true
-    loadTransactions()
+    const initialLoadTimer = window.setTimeout(() => {
+      loadTransactions()
+    }, 0)
     const refreshTimer = window.setInterval(() => {
       loadTransactions(false)
     }, queueRefreshIntervalMs)
 
     return () => {
       isMountedRef.current = false
+      window.clearTimeout(initialLoadTimer)
       window.clearInterval(refreshTimer)
     }
   }, [loadTransactions])
@@ -149,7 +153,6 @@ function TransactionQueue() {
 
       <section className="transactions-section compact-transactions-section">
         {errorMessage && <p className="dashboard-state error">{errorMessage}</p>}
-        {isLoading && <p className="dashboard-state">Loading transaction queue...</p>}
 
         <div className="employee-channel-bar" aria-label="Payment channel">
           <span>Channel:</span>
@@ -194,7 +197,16 @@ function TransactionQueue() {
               </tr>
             </thead>
             <tbody>
-              {paginatedTransactions.map((transaction) => (
+              {isLoading && (
+                <tr>
+                  <td colSpan="7">
+                    <div className="table-loading-state">
+                      <LoadingSpinner label="Loading transaction queue" />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && paginatedTransactions.map((transaction) => (
                 <tr key={transaction.id || transaction.reference}>
                   <td>{transaction.time}</td>
                   <td>{transaction.reference}</td>

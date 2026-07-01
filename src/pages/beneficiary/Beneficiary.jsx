@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createBeneficiary, fetchBeneficiaries } from '../../api/beneficiaries'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const COUNTRY_CODE = 'US'
 
@@ -280,7 +281,9 @@ function Beneficiary() {
           <div className="form-actions">
             <button className="profile-action-button primary-action" type="submit" disabled={isSaving}>
               <i className="bi bi-bookmark-check" aria-hidden="true"></i>
-              {isSaving ? 'Saving...' : 'Save Beneficiary'}
+              {isSaving ? (
+                <LoadingSpinner label="Saving" size="sm" variant="button" />
+              ) : 'Save Beneficiary'}
             </button>
           </div>
         </form>
@@ -295,12 +298,6 @@ function Beneficiary() {
         </div>
 
         <div className="transaction-table-wrap beneficiary-table-wrap">
-          {isLoadingBeneficiaries && (
-            <div className="section-loader" role="status" aria-live="polite">
-              <span className="section-loader-spinner" aria-hidden="true"></span>
-              <span>Loading beneficiaries...</span>
-            </div>
-          )}
           {loadError && <p className="dashboard-state error">{loadError}</p>}
           <table className="table bank-table beneficiary-table mb-0">
             <thead>
@@ -317,7 +314,16 @@ function Beneficiary() {
               </tr>
             </thead>
             <tbody>
-              {beneficiaries.map((beneficiary) => (
+              {isLoadingBeneficiaries && (
+                <tr>
+                  <td colSpan="9">
+                    <div className="table-loading-state">
+                      <LoadingSpinner label="Loading beneficiaries" />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!isLoadingBeneficiaries && beneficiaries.map((beneficiary) => (
                 <tr key={beneficiary.id}>
                   <td>{beneficiary.accountNumber}</td>
                   <td>{beneficiary.routingNumber}</td>

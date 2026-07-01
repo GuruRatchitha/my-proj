@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPageOptions = [5, 10, 20]
 
@@ -129,9 +130,8 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
             {isLoading && (
               <tr>
                 <td colSpan="4">
-                  <div className="settlement-loading-state" role="status">
-                    <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                    <span>Loading settlement transactions...</span>
+                  <div className="settlement-loading-state">
+                    <LoadingSpinner label="Loading settlement transactions" />
                   </div>
                 </td>
               </tr>

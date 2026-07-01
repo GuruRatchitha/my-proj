@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import httpClient from '../../api/httpClient'
 import { getUserIdFromData, storeCurrentUser, storeUserId } from '../../api/currentUser'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const PROFILE_ENDPOINT = '/api/users/profile'
 const PASSWORD_MASK = '********'
@@ -186,7 +187,11 @@ function Profile() {
           </div>
         </div>
 
-        {isLoading && <p className="dashboard-state">Loading profile details...</p>}
+        {isLoading && (
+          <p className="dashboard-state">
+            <LoadingSpinner label="Loading profile details" variant="inline" />
+          </p>
+        )}
 
         <div className="form-grid">
           {readonlyFields.map((field) => (
@@ -213,7 +218,9 @@ function Profile() {
         <div className="form-actions">
           <button className="profile-action-button primary-action" type="submit" disabled={isLoading || isSubmitting}>
             <i className="bi bi-check2" aria-hidden="true"></i>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+            {isSubmitting ? (
+              <LoadingSpinner label="Saving" size="sm" variant="button" />
+            ) : 'Save Changes'}
           </button>
           {/* <button
             className="profile-action-button secondary-action"

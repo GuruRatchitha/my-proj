@@ -1,3 +1,5 @@
+import LoadingSpinner from '../../components/LoadingSpinner'
+
 function LatestSettlementTransactions({
   transactions,
   isLoading,
@@ -27,9 +29,8 @@ function LatestSettlementTransactions({
             {isLoading && (
               <tr>
                 <td colSpan="4">
-                  <div className="employee-latest-settlements-state" role="status">
-                    <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                    <span>Loading settlement transactions...</span>
+                  <div className="employee-latest-settlements-state">
+                    <LoadingSpinner label="Loading settlement transactions" />
                   </div>
                 </td>
               </tr>

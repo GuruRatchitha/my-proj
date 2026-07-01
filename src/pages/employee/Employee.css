@@ -248,14 +248,13 @@
   font-weight: 800;
 }
 
-.employee-dashboard-skeleton,
 .employee-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
-.dashboard-skeleton-card,
+.employee-dashboard-skeleton,
 .employee-summary-card {
   border: 1px solid #dce5ef;
   border-radius: 14px;
@@ -263,28 +262,10 @@
   box-shadow: 0 8px 24px rgba(15, 37, 61, 0.05);
 }
 
-.dashboard-skeleton-card {
+.employee-dashboard-skeleton {
   min-height: 128px;
-  overflow: hidden;
-  position: relative;
-}
-
-.dashboard-skeleton-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(23, 99, 199, 0.08), transparent);
-  animation: employee-dashboard-shimmer 1.25s infinite;
-}
-
-@keyframes employee-dashboard-shimmer {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(100%);
-  }
+  display: grid;
+  place-items: center;
 }
 
 .employee-summary-card {
@@ -925,21 +906,6 @@
   font-size: 12px;
   font-weight: 800;
   line-height: 1.25;
-}
-
-.processing-pipeline-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(23, 99, 199, 0.22);
-  border-top-color: #1763c7;
-  border-radius: 999px;
-  animation: processing-pipeline-spin 0.75s linear infinite;
-}
-
-@keyframes processing-pipeline-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .employee-review-tabs {

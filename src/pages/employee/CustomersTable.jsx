@@ -1,3 +1,5 @@
+import LoadingSpinner from '../../components/LoadingSpinner'
+
 const customerColumns = [
   { key: 'userId', label: 'User ID' },
   { key: 'fullName', label: 'Full Name' },
@@ -23,9 +25,8 @@ function CustomersTable({ customers, isLoading, onEditCustomer }) {
   return (
     <div className="transaction-table-wrap customers-table-wrap">
       {isLoading && (
-        <div className="section-loader customers-loader" role="status" aria-live="polite">
-          <span className="section-loader-spinner" aria-hidden="true"></span>
-          <span>Loading customers...</span>
+        <div className="section-loader customers-loader">
+          <LoadingSpinner label="Loading customers" />
         </div>
       )}
 

@@ -13,6 +13,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 })
 
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: '2-digit',
@@ -132,6 +138,15 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? '-' : dateFormatter.format(date)
 }
 
+const formatTime = (value) => {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(normalizeDateInput(value))
+  return Number.isNaN(date.getTime()) ? '-' : timeFormatter.format(date)
+}
+
 const getValidDate = (value) => {
   if (!value) {
     return null
@@ -231,6 +246,7 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
       transaction.approvalStatus,
     )),
     paymentDate: formatDate(paymentDate),
+    paymentTime: formatTime(paymentDate),
     paymentDateValue: validPaymentDate ? validPaymentDate.toISOString().slice(0, 10) : '',
     isoPaymentDate: validPaymentDate ? validPaymentDate.toISOString() : new Date().toISOString(),
     channel: getFirstValue(paymentDetails.channel, transaction.channel, 'Fedwire'),
@@ -278,8 +294,7 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
       paymentDetails.returnReason,
       xmlDetails.rejectionReason,
     ),
-    canRevert: getRevertPermission(
-      normalized.status,
+    canRevert: getBooleanValue(
       transaction.canRevert,
       transaction.revertAllowed,
       transaction.canReturn,

@@ -253,6 +253,18 @@ const getPipelineStepPayload = (pipeline, definition) => {
       'ReceivedAt',
     ),
     message: getFlatValue('Message', 'Description', 'Detail', 'StatusMessage'),
+    reason: getFlatValue(
+      'Reason',
+      'RejectReason',
+      'RejectionReason',
+      'ReturnReason',
+      'StatusReason',
+      'ErrorReason',
+      'FailureReason',
+      'ValidationReason',
+      'ValidationFailureReason',
+    ),
+    reasonTitle: getFlatValue('ReasonTitle', 'ReasonLabel'),
     responseType: getFlatValue('ResponseType', 'MessageType', 'Type'),
     decision: getFlatValue('Decision', 'TransactionDecision'),
   }
@@ -319,6 +331,19 @@ const normalizePipelineSteps = (pipeline) => {
       'receivedAt',
     )
     const message = getPipelineValue(step, 'message', 'description', 'detail', 'statusMessage')
+    const reason = getPipelineValue(
+      step,
+      'reason',
+      'rejectReason',
+      'rejectionReason',
+      'returnReason',
+      'statusReason',
+      'errorReason',
+      'failureReason',
+      'validationReason',
+      'validationFailureReason',
+      'reasonDescription',
+    )
     const stepDecision = getPipelineValue(step, 'decision', 'transactionDecision') || decisionValue
     const displayName = definition.key === 'responseReceived'
       ? getResponseReceivedName(step, definition.name)
@@ -334,6 +359,8 @@ const normalizePipelineSteps = (pipeline) => {
         message ||
         (definition.key === 'transactionDecision' ? getDecisionMessage(stepDecision) : '') ||
         (definition.key === 'settlement' ? getSettlementMessage(stepDecision) : ''),
+      reasonTitle: getPipelineValue(step, 'reasonTitle', 'reasonLabel') || (reason ? 'Reason' : ''),
+      reason,
       decision: stepDecision,
       responseType: getPipelineValue(step, 'responseType', 'messageType', 'type'),
     }
@@ -409,10 +436,16 @@ const getDisplayedPipelineSteps = (steps, transactionStatus, hasAdmi002, lifecyc
     return steps.map((step) => ({
       ...step,
       name: step.key === 'responseReceived' ? 'PACS.002 Received' : step.name,
-      reasonTitle: step.key === 'transactionDecision' && lifecycle.pacs002Reason
-        ? 'Reason for Rejection'
-        : '',
-      reason: step.key === 'transactionDecision' ? lifecycle.pacs002Reason : '',
+      reasonTitle: ['formatValidation', 'pacs008Sent'].includes(step.key) && lifecycle.pacs008Reason
+        ? 'PACS.008 Reason'
+        : step.key === 'transactionDecision' && lifecycle.pacs002Reason
+          ? 'Reason for Rejection'
+          : step.reasonTitle,
+      reason: ['formatValidation', 'pacs008Sent'].includes(step.key) && lifecycle.pacs008Reason
+        ? lifecycle.pacs008Reason
+        : step.key === 'transactionDecision'
+          ? lifecycle.pacs002Reason || step.reason
+          : step.reason,
     }))
   }
 
@@ -429,14 +462,16 @@ const getDisplayedPipelineSteps = (steps, transactionStatus, hasAdmi002, lifecyc
     }
 
     if (step.key === 'responseReceived') {
+      const admi002Reason = lifecycle.admi002Reason || step.reason
+
       return {
         ...step,
         name: 'ADMI.002 Received',
         status: 'Completed',
         visualState: 'warning',
         description: '',
-        reasonTitle: lifecycle.admi002Reason ? 'Validation Failure' : '',
-        reason: lifecycle.admi002Reason,
+        reasonTitle: admi002Reason ? 'Validation Failure' : '',
+        reason: admi002Reason,
       }
     }
 
@@ -1079,6 +1114,7 @@ function TransactionDetails() {
   const admi002RejectReason = getAdmi002RejectReason(admi002DisplayContent)
   const xmlRejectReason = admi002RejectReason?.description || ''
   const backendRejectionReason = getBackendRejectionReason(transaction, processingPipeline)
+  const pacs008Reason = transaction.pacs008Reason
   const pacs002Reason = transaction.pacs002Reason
   const admi002Reason = transaction.admi002Reason
   const lifecycleRejectionReason = isAdmi002Available
@@ -1098,11 +1134,20 @@ function TransactionDetails() {
       isReverted,
       payaptStatus,
       rejectionReason: lifecycleRejectionReason,
+      pacs008Reason,
       pacs002Reason: pacs002Reason || lifecycleRejectionReason,
       admi002Reason: admi002Reason || lifecycleRejectionReason,
     },
   )
   const pipelineSteps = displayedPipelineSteps.map((step) => {
+    if (['formatValidation', 'pacs008Sent'].includes(step.key) && pacs008Reason) {
+      return {
+        ...step,
+        reasonTitle: 'PACS.008 Reason',
+        reason: pacs008Reason,
+      }
+    }
+
     if (step.key !== 'transactionDecision' || !pacs002Reason) {
       return step
     }

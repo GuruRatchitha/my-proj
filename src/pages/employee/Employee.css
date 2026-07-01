@@ -518,6 +518,16 @@
   color: #1763c7;
 }
 
+.transaction-status.return {
+  background: #e7f0ff;
+  color: #1763c7;
+}
+
+.transaction-status.reverted {
+  background: #eaf0f7;
+  color: #40546d;
+}
+
 .transaction-status.running,
 .transaction-status.sending {
   background: #e7f0ff;
@@ -539,6 +549,22 @@
 .transaction-status.rjct {
   background: #ffe8e8;
   color: #b83232;
+}
+
+.transaction-status.not-started,
+.transaction-status.not-executed {
+  background: #eaf0f7;
+  color: #68768a;
+}
+
+.transaction-status.not-applicable {
+  background: #fff6e8;
+  color: #b86e00;
+}
+
+.transaction-status.completed-admi-002 {
+  background: #fff6e8;
+  color: #b86e00;
 }
 
 .employee-modal-backdrop {
@@ -807,6 +833,19 @@
   color: #b86e00;
 }
 
+.processing-pipeline-marker.inactive {
+  border-color: #d7dee8;
+  background: #f5f8fc;
+  color: #98a5b5;
+}
+
+.processing-pipeline-marker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #b7c2d0;
+}
+
 .processing-pipeline-connector {
   position: absolute;
   top: 30px;
@@ -865,6 +904,17 @@
 .processing-pipeline-content .processing-pipeline-message {
   color: #36546f;
   font-weight: 850;
+  white-space: pre-line;
+}
+
+.processing-pipeline-step.inactive {
+  opacity: 0.62;
+}
+
+.processing-pipeline-step.inactive .processing-pipeline-title-row h3,
+.processing-pipeline-step.inactive .processing-pipeline-content p,
+.processing-pipeline-step.inactive .processing-pipeline-time {
+  color: #7a8797;
 }
 
 .processing-pipeline-time {

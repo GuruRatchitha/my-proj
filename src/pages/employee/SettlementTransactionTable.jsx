@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPageOptions = [5, 10, 20]
 
@@ -29,26 +28,30 @@ const getDisplayAccountNumber = (transaction) => {
   return transaction.senderAccountNumber || transaction.beneficiaryAccountNumber || '-'
 }
 
-function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
+function SettlementTransactionTable({
+  transactions,
+  isLoading,
+  errorMessage,
+  onRetry,
+  title = 'Transaction History',
+  eyebrow = 'Settlement Ledger',
+  showControls = true,
+  showPagination = true,
+  hideMissingReceiverAccountType = false,
+  useDetailedDateTime = false,
+}) {
   const [paymentSearch, setPaymentSearch] = useState('')
-  const [accountSearch, setAccountSearch] = useState('')
   const [dateSort, setDateSort] = useState('newest')
-  const [rowsPerPage, setRowsPerPage] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
   const filteredTransactions = useMemo(() => {
     const normalizedPaymentSearch = paymentSearch.trim().toLowerCase()
-    const normalizedAccountSearch = accountSearch.trim().toLowerCase()
 
     return transactions
       .filter((transaction) => {
-        const paymentId = transaction.paymentId.toString().toLowerCase()
-        const accountText = getDisplayAccountNumber(transaction).toLowerCase()
+        const paymentId = String(transaction.paymentId || '').toLowerCase()
 
-        const matchesPayment = !normalizedPaymentSearch || paymentId.includes(normalizedPaymentSearch)
-        const matchesAccount = !normalizedAccountSearch || accountText.includes(normalizedAccountSearch)
-
-        return matchesPayment && matchesAccount
+        return !normalizedPaymentSearch || paymentId.includes(normalizedPaymentSearch)
       })
       .sort((firstTransaction, secondTransaction) => {
         const firstDate = firstTransaction.createdDateValue
@@ -56,11 +59,13 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
 
         return dateSort === 'newest' ? secondDate - firstDate : firstDate - secondDate
       })
-  }, [accountSearch, dateSort, paymentSearch, transactions])
+  }, [dateSort, paymentSearch, transactions])
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / rowsPerPage))
-  const pageStartIndex = (currentPage - 1) * rowsPerPage
+  const visiblePage = Math.min(currentPage, totalPages)
+  const pageStartIndex = (visiblePage - 1) * rowsPerPage
   const paginatedTransactions = filteredTransactions.slice(pageStartIndex, pageStartIndex + rowsPerPage)
+  const displayedTransactions = showPagination ? paginatedTransactions : filteredTransactions
 
   const resetToFirstPage = () => {
     setCurrentPage(1)
@@ -70,58 +75,51 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
     <section className="transactions-section compact-transactions-section settlement-history-section">
       <div className="settlement-section-heading">
         <div>
-          <span className="account-id">Settlement Ledger</span>
-          <h2>Transaction History</h2>
+          {eyebrow && <span className="account-id">{eyebrow}</span>}
+          <h2>{title}</h2>
         </div>
         <span className="settlement-result-count">{filteredTransactions.length} records</span>
       </div>
 
-      {errorMessage && <p className="dashboard-state error">{errorMessage}</p>}
+      {showControls && (
+        <div className="table-toolbar settlement-table-toolbar">
+          <div className="search-control">
+            <i className="bi bi-search" aria-hidden="true"></i>
+            <input
+              type="search"
+              placeholder="Search by Payment ID"
+              value={paymentSearch}
+              onChange={(event) => {
+                setPaymentSearch(event.target.value)
+                resetToFirstPage()
+              }}
+            />
+          </div>
 
-      <div className="table-toolbar settlement-table-toolbar">
-        <div className="search-control">
-          <i className="bi bi-search" aria-hidden="true"></i>
-          <input
-            type="search"
-            placeholder="Search by Payment ID"
-            value={paymentSearch}
+          <select
+            className="filter-select"
+            value={dateSort}
             onChange={(event) => {
-              setPaymentSearch(event.target.value)
+              setDateSort(event.target.value)
               resetToFirstPage()
             }}
-          />
+            aria-label="Sort by date"
+          >
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
         </div>
-
-        <div className="search-control">
-          <i className="bi bi-search" aria-hidden="true"></i>
-          <input
-            type="search"
-            placeholder="Search by Account Number"
-            value={accountSearch}
-            onChange={(event) => {
-              setAccountSearch(event.target.value)
-              resetToFirstPage()
-            }}
-          />
-        </div>
-
-        <select
-          className="filter-select"
-          value={dateSort}
-          onChange={(event) => setDateSort(event.target.value)}
-          aria-label="Sort by date"
-        >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-        </select>
-      </div>
+      )}
 
       <div className="transaction-table-wrap">
         <table className="table table-hover bank-table settlement-transaction-table mb-0">
           <thead>
             <tr>
               <th>Payment ID</th>
-              <th>Account Number</th>
+              <th>Sender Details</th>
+              <th>Receiver Details</th>
+              <th>Date/Time</th>
+              <th>UETR</th>
               <th>Amount</th>
               <th>Status</th>
             </tr>
@@ -130,29 +128,77 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
             {isLoading && (
               <tr>
                 <td colSpan="4">
-                  <div className="settlement-loading-state">
-                    <LoadingSpinner label="Loading settlement transactions" />
+                  <div className="settlement-loading-state" role="status">
+                    <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    <span>Loading settlement transactions...</span>
                   </div>
                 </td>
               </tr>
             )}
 
-            {!isLoading && paginatedTransactions.map((transaction) => (
+            {!isLoading && errorMessage && (
+              <tr>
+                <td colSpan="7">
+                  <div className="settlement-loading-state error" role="alert">
+                    <span>{errorMessage}</span>
+                    {onRetry && (
+                      <button
+                        className="profile-action-button secondary-action"
+                        type="button"
+                        onClick={onRetry}
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {!isLoading && !errorMessage && displayedTransactions.map((transaction) => (
               <tr key={transaction.id}>
                 <td>{transaction.paymentId || '-'}</td>
-                <td>{getDisplayAccountNumber(transaction)}</td>
-                <td className="debit-text">{transaction.formattedAmount}</td>
-                <td>{getDisplayStatus(transaction)}</td>
+                <td>
+                  <PartyDetails
+                    display={transaction.senderDisplay}
+                    accountNumber={transaction.senderAccountNumber}
+                    name={transaction.senderName}
+                    accountType={transaction.senderAccountType}
+                  />
+                </td>
+                <td>
+                  <PartyDetails
+                    display={transaction.receiverDisplay}
+                    accountNumber={transaction.receiverAccountNumber}
+                    name={transaction.receiverName}
+                    accountType={transaction.receiverAccountType}
+                    hideMissingAccountType={hideMissingReceiverAccountType}
+                  />
+                </td>
+                <td>
+                  {useDetailedDateTime
+                    ? formatDetailedDateTime(transaction.dateTime, transaction.formattedDateTime)
+                    : transaction.formattedDateTime}
+                </td>
+                <td className="settlement-uetr-cell">{transaction.uetr || '-'}</td>
+                <td className={`settlement-amount ${transaction.settlementStatus.toLowerCase()}`}>
+                  {formatSignedAmount(transaction)}
+                </td>
+                <td>
+                  <span className={`settlement-status ${transaction.settlementStatus.toLowerCase()}`}>
+                    {transaction.settlementStatus}
+                  </span>
+                </td>
               </tr>
             ))}
 
-            {!isLoading && paginatedTransactions.length === 0 && (
+            {!isLoading && !errorMessage && displayedTransactions.length === 0 && (
               <tr>
-                <td colSpan="4">
+                <td colSpan="7">
                   <div className="settlement-empty-state">
                     <i className="bi bi-inbox" aria-hidden="true"></i>
                     <strong>No settlement transactions found</strong>
-                    <span>Try changing the search text or filters.</span>
+                    {showControls && <span>Try changing the search text or filters.</span>}
                   </div>
                 </td>
               </tr>
@@ -161,54 +207,37 @@ function SettlementTransactionTable({ transactions, isLoading, errorMessage }) {
         </table>
       </div>
 
-      <div className="pagination-bar settlement-pagination-bar">
-        <span>
-          Showing {filteredTransactions.length === 0 ? 0 : pageStartIndex + 1}-
-          {Math.min(pageStartIndex + rowsPerPage, filteredTransactions.length)} of{' '}
-          {filteredTransactions.length}
-        </span>
+      {showPagination && (
+        <div className="pagination-bar settlement-pagination-bar">
+          <span>
+            Showing {filteredTransactions.length === 0 ? 0 : pageStartIndex + 1}-
+            {Math.min(pageStartIndex + rowsPerPage, filteredTransactions.length)} of{' '}
+            {filteredTransactions.length}
+          </span>
 
-        <div className="settlement-page-size">
-          <span>Rows</span>
-          <select
-            className="filter-select"
-            value={rowsPerPage}
-            onChange={(event) => {
-              setRowsPerPage(Number(event.target.value))
-              resetToFirstPage()
-            }}
-            aria-label="Rows per page"
-          >
-            {rowsPerPageOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          <div className="pagination-actions">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={visiblePage === 1}
+            >
+              <i className="bi bi-chevron-left" aria-hidden="true"></i>
+              Previous
+            </button>
+            <strong>
+              Page {visiblePage} of {totalPages}
+            </strong>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={visiblePage === totalPages}
+            >
+              Next
+              <i className="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
-
-        <div className="pagination-actions">
-          <button
-            type="button"
-            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            disabled={currentPage === 1}
-          >
-            <i className="bi bi-chevron-left" aria-hidden="true"></i>
-            Previous
-          </button>
-          <strong>
-            Page {currentPage} of {totalPages}
-          </strong>
-          <button
-            type="button"
-            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-            <i className="bi bi-chevron-right" aria-hidden="true"></i>
-          </button>
-        </div>
-      </div>
+      )}
     </section>
   )
 }

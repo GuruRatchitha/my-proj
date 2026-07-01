@@ -8,6 +8,7 @@ import {
   fetchEmployeeTransactionProcessingPipeline,
   fetchEmployeeTransactionXml,
   rejectEmployeeTransaction,
+  revertEmployeeTransaction,
 } from '../../api/employeeTransactions'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
@@ -36,15 +37,83 @@ const detailSections = [
   },
 ]
 
-const getStatusClass = (status = '') => status.toLowerCase().replace(/\s+/g, '-')
-const pacs002PendingMessage = 'The PACS.002 has not been received yet.'
-const admi002PendingMessage = 'No ADMI.002 message has been received for this transaction.'
+const getStatusClass = (status = '') => status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const getHttpStatusText = (status) => status || 'unavailable'
 const pipelineRefreshIntervalMs = 5000
 const hasXmlContent = (value) => Boolean(value && value.toString().trim())
 
 const isFinalStatus = (status = '') =>
-  ['APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED'].includes(status.toUpperCase())
+  [
+    'APPROVED',
+    'REJECTED',
+    'PROCESSING',
+    'COMPLETED',
+    'COMPLETED (ADMI.002)',
+    'FAILED',
+    'RETURN',
+    'REVERTED',
+  ].includes(status.toUpperCase())
+
+const normalizeLifecycleValue = (value = '') =>
+  value.toString().trim().toUpperCase().replace(/[\s_-]+/g, '_')
+
+const getBackendLifecycleValue = (transaction, pipeline, ...keys) =>
+  getPipelineValue(transaction, ...keys) || getPipelineValue(pipeline, ...keys)
+
+const getPayaptStatus = (transaction, pipeline) =>
+  normalizeLifecycleValue(getBackendLifecycleValue(
+    transaction,
+    pipeline,
+    'payaptStatus',
+    'payAptStatus',
+    'pacs002Status',
+    'pacs002ResponseStatus',
+    'paymentStatus',
+  ))
+
+const getBackendRejectionReason = (transaction, pipeline) =>
+  getBackendLifecycleValue(
+    transaction,
+    pipeline,
+    'rejectionReason',
+    'rejectReason',
+    'returnReason',
+    'reason',
+    'statusReason',
+    'errorReason',
+  )
+
+const getPaymentStatus = (transaction, pipeline, hasAdmi002) => {
+  const payaptStatus = getPayaptStatus(transaction, pipeline)
+  const backendStatus = getBackendLifecycleValue(
+    transaction,
+    pipeline,
+    'displayStatus',
+    'paymentDisplayStatus',
+    'status',
+    'currentStatus',
+    'transactionStatus',
+  )
+  const normalizedStatus = normalizeLifecycleValue(backendStatus)
+
+  if (['REVERTED', 'RETURNED'].includes(normalizedStatus)) {
+    return 'Reverted'
+  }
+
+  if (payaptStatus === 'RJCT') {
+    return 'Return'
+  }
+
+  if (hasAdmi002) {
+    return normalizedStatus === 'COMPLETED_ADMI_002' ? backendStatus : 'Completed (ADMI.002)'
+  }
+
+  if (payaptStatus === 'ACSC') {
+    return 'Completed'
+  }
+
+  return backendStatus || 'Pending'
+}
 
 const pipelineStepDefinitions = [
   {
@@ -273,6 +342,10 @@ const normalizePipelineSteps = (pipeline) => {
 }
 
 const getPipelineVisualState = (step) => {
+  if (step.isInactive) {
+    return 'inactive'
+  }
+
   const status = normalizePipelineStatus(step.status)
 
   if (['failed', 'rejected', 'rjct'].includes(status)) {
@@ -283,7 +356,10 @@ const getPipelineVisualState = (step) => {
     return 'running'
   }
 
-  if (step.key === 'responseReceived' && step.name.toUpperCase().includes('ADMI')) {
+  if (
+    step.visualState === 'warning' ||
+    (step.key === 'responseReceived' && step.name.toUpperCase().includes('ADMI'))
+  ) {
     return 'warning'
   }
 
@@ -292,6 +368,92 @@ const getPipelineVisualState = (step) => {
   }
 
   return 'pending'
+}
+
+const isPipelineAwaitingApproval = (transactionStatus = '') =>
+  ['', 'PENDING', 'HOLD', 'ON_HOLD'].includes(
+    transactionStatus.toString().trim().toUpperCase().replace(/\s+/g, '_'),
+  )
+
+const getDisplayedPipelineSteps = (steps, transactionStatus, hasAdmi002, lifecycle = {}) => {
+  if (isPipelineAwaitingApproval(transactionStatus)) {
+    return steps.map((step) => ({
+      ...step,
+      status: 'Not Started',
+      description: '',
+      message: '',
+      timestamp: '',
+    }))
+  }
+
+  if (lifecycle.isReverted) {
+    return steps.map((step) => ({
+      ...step,
+      status: ['settlement', 'processCompleted'].includes(step.key) ? 'Completed' : step.status,
+      message: step.key === 'settlement'
+        ? 'Funds Returned'
+        : step.key === 'processCompleted'
+          ? 'Process Completed'
+          : step.message,
+    }))
+  }
+
+  if (lifecycle.payaptStatus === 'ACSC') {
+    return steps.map((step) => ({
+      ...step,
+      name: step.key === 'responseReceived' ? 'PACS.002 Received' : step.name,
+      status: 'Completed',
+    }))
+  }
+
+  if (lifecycle.payaptStatus === 'RJCT') {
+    return steps.map((step) => ({
+      ...step,
+      name: step.key === 'responseReceived' ? 'PACS.002 Received' : step.name,
+      reasonTitle: step.key === 'transactionDecision' && lifecycle.pacs002Reason
+        ? 'Reason for Rejection'
+        : '',
+      reason: step.key === 'transactionDecision' ? lifecycle.pacs002Reason : '',
+    }))
+  }
+
+  if (!hasAdmi002) {
+    return steps
+  }
+
+  return steps.map((step) => {
+    if (['formatValidation', 'pacs008Sent'].includes(step.key)) {
+      return {
+        ...step,
+        status: 'Completed',
+      }
+    }
+
+    if (step.key === 'responseReceived') {
+      return {
+        ...step,
+        name: 'ADMI.002 Received',
+        status: 'Completed',
+        visualState: 'warning',
+        description: '',
+        reasonTitle: lifecycle.admi002Reason ? 'Validation Failure' : '',
+        reason: lifecycle.admi002Reason,
+      }
+    }
+
+    if (['transactionDecision', 'settlement', 'processCompleted'].includes(step.key)) {
+      return {
+        ...step,
+        status: 'Not Executed',
+        description: '',
+        message: '',
+        timestamp: '',
+        isInactive: true,
+      }
+    }
+
+    return step
+  })
 }
 
 const isPipelineComplete = (steps) =>
@@ -327,7 +489,7 @@ function ProcessingPipeline({ steps, isLoading, errorMessage }) {
             >
               <div className={`processing-pipeline-marker ${visualState}`}>
                 {visualState === 'running' ? (
-                  <LoadingSpinner label="Processing" size="sm" variant="inline" showLabel={false} />
+                  <span className="processing-pipeline-spinner" aria-hidden="true" />
                 ) : (
                   <i
                     className={`bi ${
@@ -360,6 +522,12 @@ function ProcessingPipeline({ steps, isLoading, errorMessage }) {
                 </div>
                 {step.description && <p>{step.description}</p>}
                 {step.message && <p className="processing-pipeline-message">{step.message}</p>}
+                {step.reason && (
+                  <div className="processing-pipeline-reason">
+                    <strong>{step.reasonTitle}</strong>
+                    <span>{step.reason}</span>
+                  </div>
+                )}
                 {timestamp && (
                   <time className="processing-pipeline-time" dateTime={step.timestamp}>
                     <span>{timestamp.date}</span>
@@ -388,6 +556,111 @@ function DetailCard({ title, fields, source }) {
         ))}
       </dl>
     </article>
+  )
+}
+
+function XmlPlaceholder() {
+  return (
+    <div className="employee-xml-placeholder">
+      <i className="bi bi-hourglass-split" aria-hidden="true"></i>
+      <strong>Not received yet</strong>
+      <span>Waiting for message generation...</span>
+    </div>
+  )
+}
+
+function XmlReasonCard({ title, children }) {
+  if (!children) {
+    return null
+  }
+
+  return (
+    <div className="employee-xml-reason-card">
+      <strong>{title}</strong>
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function XmlPanel({
+  children,
+  content,
+  error,
+  errorDetail,
+  isAvailable,
+  isCopied,
+  isLoading,
+  loadingMessage,
+  messageType,
+  onCopy,
+  onRetry,
+}) {
+  return (
+    <div
+      className={`employee-xml-panel ${!isAvailable && !error ? 'empty' : ''}`}
+      role="tabpanel"
+    >
+      <div className="employee-xml-toolbar">
+        <button
+          className="employee-xml-copy-button"
+          type="button"
+          disabled={!isAvailable || Boolean(error)}
+          onClick={() => onCopy(content, messageType)}
+          aria-label={`Copy ${messageType} XML`}
+          title={`Copy ${messageType} XML`}
+        >
+          <i className={`bi ${isCopied ? 'bi-check-lg' : 'bi-copy'}`} aria-hidden="true"></i>
+        </button>
+      </div>
+      {isLoading && (
+        <div className="employee-xml-loading" role="status" aria-live="polite">
+          {loadingMessage}
+        </div>
+      )}
+      {error ? (
+        <div className="employee-xml-state error" role="alert">
+          <strong>{error}</strong>
+          {errorDetail && <span>{errorDetail}</span>}
+          {onRetry && (
+            <button
+              className="profile-action-button secondary-action"
+              type="button"
+              onClick={onRetry}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      ) : isAvailable ? (
+        <>
+          {children}
+          <pre>
+            <code>{content}</code>
+          </pre>
+        </>
+      ) : (
+        <XmlPlaceholder />
+      )}
+    </div>
+  )
+}
+
+function CopyableValue({ value, onCopy, isCopied }) {
+  return (
+    <span className="employee-copyable-value">
+      <span>{value || '-'}</span>
+      {value && (
+        <button
+          className="employee-icon-button"
+          type="button"
+          onClick={() => onCopy(value)}
+          aria-label="Copy UETR"
+          title="Copy UETR"
+        >
+          <i className={`bi ${isCopied ? 'bi-check-lg' : 'bi-copy'}`} aria-hidden="true"></i>
+        </button>
+      )}
+    </span>
   )
 }
 
@@ -448,6 +721,7 @@ function TransactionDetails() {
   const [processingPipeline, setProcessingPipeline] = useState(null)
   const [isPipelineLoading, setIsPipelineLoading] = useState(false)
   const [pipelineErrorMessage, setPipelineErrorMessage] = useState('')
+  const [copiedField, setCopiedField] = useState('')
 
   const transactionId = decodeURIComponent(transactionReference)
   const processingPipelineTransactionId = transaction?.id || transactionId
@@ -550,11 +824,13 @@ function TransactionDetails() {
   }, [transactionId])
 
   const loadAvailableXmls = useCallback(async (showLoading = true) => {
-    await Promise.all([
+    const [pacs008, pacs002, admi002] = await Promise.all([
       loadPacs008Xml(showLoading),
       loadPacs002Xml(showLoading),
       loadAdmi002Xml(showLoading),
     ])
+
+    return { pacs008, pacs002, admi002 }
   }, [loadAdmi002Xml, loadPacs002Xml, loadPacs008Xml])
 
   const loadProcessingPipeline = useCallback(async (showLoading = true) => {
@@ -627,7 +903,7 @@ function TransactionDetails() {
         return null
       }
 
-      const [pipelineResult, transactionResult] = await Promise.allSettled([
+      const [pipelineResult, transactionResult, xmlResult] = await Promise.allSettled([
         loadProcessingPipeline(showLoading),
         loadTransaction(false),
         loadAvailableXmls(showLoading),
@@ -643,14 +919,23 @@ function TransactionDetails() {
 
       const nextSteps = normalizePipelineSteps(nextPipeline)
       const normalizedTransactionStatus = nextTransaction?.status?.toUpperCase() || ''
+      const hasAdmi002Response = hasXmlContent(nextTransaction?.admi002Xml) ||
+        (xmlResult.status === 'fulfilled' && hasXmlContent(xmlResult.value?.admi002))
+      const nextPayaptStatus = getPayaptStatus(nextTransaction, nextPipeline)
+      const displayedSteps = getDisplayedPipelineSteps(
+        nextSteps,
+        normalizedTransactionStatus,
+        hasAdmi002Response,
+        { payaptStatus: nextPayaptStatus },
+      )
       const pipelineHasStarted = nextSteps.some(
         (step) => getPipelineVisualState(step) !== 'pending',
       )
-      const pipelineComplete = isPipelineComplete(nextSteps)
+      const pipelineComplete = isPipelineComplete(displayedSteps)
       const shouldContinuePolling = !nextTransaction ||
         normalizedTransactionStatus === 'PENDING' ||
         normalizedTransactionStatus === 'PROCESSING' ||
-        (normalizedTransactionStatus === 'APPROVED' && !pipelineComplete) ||
+        (normalizedTransactionStatus === 'APPROVED' && !pipelineComplete && !hasAdmi002Response && nextPayaptStatus !== 'ACSC') ||
         (normalizedTransactionStatus === 'REJECTED' && pipelineHasStarted && !pipelineComplete)
 
       if (shouldContinuePolling) {
@@ -674,16 +959,23 @@ function TransactionDetails() {
   const pacs002DisplayContent = pacs002Content || transaction?.pacs002Xml || ''
   const admi002DisplayContent = admi002Content || transaction?.admi002Xml || ''
   const isPacs008Available = pacs008Status === 'ready' || hasXmlContent(pacs008DisplayContent)
-  const isPacs002Available = pacs002Status === 'ready' || hasXmlContent(transaction?.pacs002Xml)
-  const isAdmi002Available = admi002Status === 'ready' || hasXmlContent(transaction?.admi002Xml)
-  const availableTabs = [
-    isPacs008Available && 'xml',
-    isPacs002Available && 'pacs002',
-    isAdmi002Available && 'admi002',
-  ].filter(Boolean)
-  const visibleActiveTab = availableTabs.includes(activeTab)
-    ? activeTab
-    : availableTabs[0] || activeTab
+  const isPacs002Available = pacs002Status === 'ready' || hasXmlContent(pacs002DisplayContent)
+  const isAdmi002Available = admi002Status === 'ready' || hasXmlContent(admi002DisplayContent)
+  const visibleActiveTab = ['xml', 'pacs002', 'admi002'].includes(activeTab) ? activeTab : 'xml'
+
+  const handleCopyValue = async (value, field = 'uetr') => {
+    if (!value) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedField(field)
+      window.setTimeout(() => setCopiedField(''), 1600)
+    } catch {
+      setCopiedField('')
+    }
+  }
 
   const handleReviewAction = async (action) => {
     if (!transaction || activeAction || isFinalStatus(transaction.status)) {
@@ -710,6 +1002,38 @@ function TransactionDetails() {
       ])
     } catch (error) {
       setErrorMessage(error.message || 'Unable to update transaction.')
+    } finally {
+      setActiveAction('')
+    }
+  }
+
+  const handleRevert = async () => {
+    if (!transaction || activeAction || !transaction.canRevert) {
+      return
+    }
+
+    try {
+      setActiveAction('revert')
+      setActionMessage('')
+      setErrorMessage('')
+
+      await revertEmployeeTransaction(transaction.id || transaction.reference)
+      setActionMessage('Transaction reverted successfully.')
+      setTransaction((currentTransaction) => currentTransaction
+        ? {
+            ...currentTransaction,
+            status: 'Reverted',
+            canRevert: false,
+          }
+        : currentTransaction)
+
+      await Promise.allSettled([
+        loadTransaction(false),
+        loadProcessingPipeline(false),
+        loadAvailableXmls(false),
+      ])
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to revert transaction.')
     } finally {
       setActiveAction('')
     }
@@ -747,16 +1071,49 @@ function TransactionDetails() {
   const paymentFields = [
     ['Transaction Reference', transaction.reference],
     ['Amount', transaction.amount],
-    ['Payment Date', transaction.paymentDate],
-    ['Status', transaction.status],
+    ['Payment Date & Time', [transaction.paymentDate, transaction.paymentTime].filter((value) => value && value !== '-')],
+    ['UETR', transaction.uetr],
+    ['Status', getPaymentStatus(transaction, processingPipeline, isAdmi002Available)],
     ['Channel', transaction.channel],
   ]
   const isActionInProgress = Boolean(activeAction)
-  const areReviewActionsDisabled = isActionInProgress || isFinalStatus(transaction.status)
   const admi002RejectReason = getAdmi002RejectReason(admi002DisplayContent)
-  const transactionStatus = transaction.status || 'Pending'
-  const pipelineSteps = normalizePipelineSteps(processingPipeline)
-  const hasAvailableXml = isPacs008Available || isPacs002Available || isAdmi002Available
+  const xmlRejectReason = admi002RejectReason?.description || ''
+  const backendRejectionReason = getBackendRejectionReason(transaction, processingPipeline)
+  const pacs002Reason = transaction.pacs002Reason
+  const admi002Reason = transaction.admi002Reason
+  const lifecycleRejectionReason = isAdmi002Available
+    ? xmlRejectReason || backendRejectionReason
+    : backendRejectionReason || xmlRejectReason
+  const payaptStatus = getPayaptStatus(transaction, processingPipeline)
+  const transactionStatus = getPaymentStatus(transaction, processingPipeline, isAdmi002Available)
+  const isReturnStatus = payaptStatus === 'RJCT'
+  const isReverted = normalizeLifecycleValue(transactionStatus) === 'REVERTED'
+  const areReviewActionsDisabled = isActionInProgress || isFinalStatus(transactionStatus)
+  const isRevertDisabled = isActionInProgress || !transaction.canRevert || isReverted
+  const displayedPipelineSteps = getDisplayedPipelineSteps(
+    normalizePipelineSteps(processingPipeline),
+    transactionStatus,
+    isAdmi002Available,
+    {
+      isReverted,
+      payaptStatus,
+      rejectionReason: lifecycleRejectionReason,
+      pacs002Reason: pacs002Reason || lifecycleRejectionReason,
+      admi002Reason: admi002Reason || lifecycleRejectionReason,
+    },
+  )
+  const pipelineSteps = displayedPipelineSteps.map((step) => {
+    if (step.key !== 'transactionDecision' || !pacs002Reason) {
+      return step
+    }
+
+    return {
+      ...step,
+      reasonTitle: 'Reason for Rejection',
+      reason: pacs002Reason,
+    }
+  })
 
   return (
     <div className="dashboard-main employee-review-page">
@@ -794,9 +1151,7 @@ function TransactionDetails() {
             disabled={areReviewActionsDisabled}
             onClick={() => handleReviewAction('approve')}
           >
-            {activeAction === 'approve' ? (
-              <LoadingSpinner label="Approving" size="sm" variant="button" />
-            ) : 'Approve'}
+            {activeAction === 'approve' ? 'Approving...' : 'Approve'}
           </button>
         </div>
       </section>
@@ -830,6 +1185,18 @@ function TransactionDetails() {
                     <span className={`transaction-status ${getStatusClass(transactionStatus)}`}>
                       {transactionStatus}
                     </span>
+                  ) : label === 'Payment Date & Time' ? (
+                    <span className="employee-date-time-value">
+                      {(value.length ? value : ['-']).map((line) => (
+                        <span key={line}>{line}</span>
+                      ))}
+                    </span>
+                  ) : label === 'UETR' ? (
+                    <CopyableValue
+                      value={value}
+                      isCopied={copiedField === 'uetr'}
+                      onCopy={(nextValue) => handleCopyValue(nextValue, 'uetr')}
+                    />
                   ) : (
                     value || '-'
                   )}
@@ -849,56 +1216,50 @@ function TransactionDetails() {
 
         <section className="employee-review-tabs" aria-label="Transaction review tabs">
           <div className="employee-tab-list" role="tablist">
-            {isPacs008Available && (
-              <button
-                className={visibleActiveTab === 'xml' ? 'active' : ''}
-                type="button"
-                role="tab"
-                aria-selected={visibleActiveTab === 'xml'}
-                onClick={() => setActiveTab('xml')}
-              >
-                PACS.008
-              </button>
-            )}
-            {isPacs002Available && (
-              <button
-                className={visibleActiveTab === 'pacs002' ? 'active' : ''}
-                type="button"
-                role="tab"
-                aria-selected={visibleActiveTab === 'pacs002'}
-                onClick={() => setActiveTab('pacs002')}
-              >
-                PACS.002
-              </button>
-            )}
-            {isAdmi002Available && (
-              <button
-                className={visibleActiveTab === 'admi002' ? 'active' : ''}
-                type="button"
-                role="tab"
-                aria-selected={visibleActiveTab === 'admi002'}
-                onClick={() => setActiveTab('admi002')}
-              >
-                ADMI.002
-              </button>
-            )}
+            <button
+              className={visibleActiveTab === 'xml' ? 'active' : ''}
+              type="button"
+              role="tab"
+              aria-selected={visibleActiveTab === 'xml'}
+              onClick={() => setActiveTab('xml')}
+            >
+              PACS.008
+            </button>
+            <button
+              className={visibleActiveTab === 'pacs002' ? 'active' : ''}
+              type="button"
+              role="tab"
+              aria-selected={visibleActiveTab === 'pacs002'}
+              onClick={() => setActiveTab('pacs002')}
+            >
+              PACS.002
+            </button>
+            <button
+              className={visibleActiveTab === 'admi002' ? 'active' : ''}
+              type="button"
+              role="tab"
+              aria-selected={visibleActiveTab === 'admi002'}
+              onClick={() => setActiveTab('admi002')}
+            >
+              ADMI.002
+            </button>
           </div>
 
           {!hasAvailableXml && (
             <div className="employee-xml-state">
-              {isXmlLoading || isPacs002Loading || isAdmi002Loading ? (
-                <LoadingSpinner label="Loading available XML messages" variant="dark" />
-              ) : (
-                <strong>No XML messages are available for this transaction.</strong>
-              )}
+              <strong>
+                {isXmlLoading || isPacs002Loading || isAdmi002Loading
+                  ? 'Loading available XML messages...'
+                  : 'No XML messages are available for this transaction.'}
+              </strong>
             </div>
           )}
 
           {visibleActiveTab === 'xml' && isPacs008Available && (
             <div className="employee-xml-panel" role="tabpanel">
               {isXmlLoading && (
-                <div className="employee-xml-loading">
-                  <LoadingSpinner label="Loading PACS.008 XML" size="sm" variant="dark" />
+                <div className="employee-xml-loading" role="status" aria-live="polite">
+                  Loading PACS.008 XML...
                 </div>
               )}
               <pre>
@@ -910,8 +1271,8 @@ function TransactionDetails() {
           {visibleActiveTab === 'pacs002' && isPacs002Available && (
             <div className="employee-xml-panel" role="tabpanel">
               {isPacs002Loading && (
-                <div className="employee-xml-loading">
-                  <LoadingSpinner label="Loading PACS.002 XML" size="sm" variant="dark" />
+                <div className="employee-xml-loading" role="status" aria-live="polite">
+                  Loading PACS.002 XML...
                 </div>
               )}
               {pacs002Status === 'error' ? (
@@ -941,8 +1302,8 @@ function TransactionDetails() {
           {visibleActiveTab === 'admi002' && isAdmi002Available && (
             <div className="employee-xml-panel" role="tabpanel">
               {isAdmi002Loading && (
-                <div className="employee-xml-loading">
-                  <LoadingSpinner label="Loading ADMI.002 XML" size="sm" variant="dark" />
+                <div className="employee-xml-loading" role="status" aria-live="polite">
+                  Loading ADMI.002 XML...
                 </div>
               )}
               {admi002Status === 'error' ? (

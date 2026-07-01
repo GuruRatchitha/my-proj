@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeDashboard } from '../../api/employeeDashboard'
 import { fetchLatestSettlementTransactions } from '../../api/SettlementAccountService'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import LatestSettlementTransactions from './LatestSettlementTransactions'
+import SettlementTransactionTable from './SettlementTransactionTable'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -240,11 +240,15 @@ function EmployeeDashboard() {
         </section>
       )}
 
-      <LatestSettlementTransactions
+      <SettlementTransactionTable
         transactions={settlementTransactions}
         isLoading={areSettlementsLoading}
         errorMessage={settlementErrorMessage}
         onRetry={loadLatestSettlementTransactions}
+        title="Last 5 Settlement Transactions"
+        eyebrow="Settlement Ledger"
+        showControls={false}
+        showPagination={false}
       />
     </div>
   )

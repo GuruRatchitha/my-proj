@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchEmployeeTransactions } from '../../api/employeeTransactions'
-import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPage = 10
-const statusOptions = ['All', 'Pending', 'Hold', 'Rejected', 'Approved', 'Processing', 'Completed', 'Failed']
+const statusOptions = [
+  'All',
+  'Pending',
+  'Hold',
+  'Rejected',
+  'Approved',
+  'Processing',
+  'Completed',
+  'Failed',
+  'Reverted',
+]
 const queueRefreshIntervalMs = 15000
 
 const getStatusClass = (status = '') => status.toLowerCase().replace(/\s+/g, '-')
@@ -18,6 +27,8 @@ function TransactionQueue() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
+  const [activeRevertId, setActiveRevertId] = useState('')
   const latestRequestIdRef = useRef(0)
   const isMountedRef = useRef(false)
   const isFullLoadingRef = useRef(false)
@@ -144,12 +155,47 @@ function TransactionQueue() {
     })
   }
 
+  const handleRevertTransaction = async (transaction) => {
+    const transactionId = transaction.id || transaction.reference
+
+    if (!transactionId || activeRevertId || !transaction.canRevert) {
+      return
+    }
+
+    try {
+      setActiveRevertId(String(transactionId))
+      setActionMessage('')
+      setErrorMessage('')
+
+      await revertEmployeeTransaction(transactionId)
+
+      setTransactions((currentTransactions) => currentTransactions.map((currentTransaction) =>
+        currentTransaction.id === transaction.id
+          ? { ...currentTransaction, status: 'Reverted', canRevert: false }
+          : currentTransaction,
+      ))
+      setActionMessage(`Transaction ${transaction.reference} reverted successfully.`)
+      await loadTransactions(false)
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to revert transaction.')
+    } finally {
+      setActiveRevertId('')
+    }
+  }
+
   return (
     <div className="dashboard-main">
       <section className="title-block">
         <h1>Transaction Queue</h1>
         <p>Review pending Fedwire payments for release decisions.</p>
       </section>
+
+      {actionMessage && (
+        <div className="alert alert-success beneficiary-alert" role="status">
+          <i className="bi bi-check-circle-fill" aria-hidden="true"></i>
+          <span>{actionMessage}</span>
+        </div>
+      )}
 
       <section className="transactions-section compact-transactions-section">
         {errorMessage && <p className="dashboard-state error">{errorMessage}</p>}
@@ -227,6 +273,18 @@ function TransactionQueue() {
                       >
                         Open &rarr;
                       </button>
+                      {transaction.canRevert && (
+                        <button
+                          className="employee-revert-link"
+                          type="button"
+                          disabled={Boolean(activeRevertId)}
+                          onClick={() => handleRevertTransaction(transaction)}
+                        >
+                          {activeRevertId === String(transaction.id || transaction.reference)
+                            ? 'Reverting...'
+                            : 'Revert'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

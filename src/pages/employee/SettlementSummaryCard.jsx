@@ -2,6 +2,7 @@ function SettlementSummaryCard({ account }) {
   const fields = [
     ['Account Number', account?.accountNumber],
     ['Current Balance', account?.formattedCurrentBalance],
+    ['Revert Amount', account?.formattedRevertAmount],
   ]
 
   return (

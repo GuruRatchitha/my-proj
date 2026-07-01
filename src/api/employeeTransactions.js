@@ -13,6 +13,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 })
 
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: '2-digit',
@@ -49,6 +55,36 @@ const getObjectValue = (source, ...keys) => {
   }
 
   return getFirstValue(...keys.map((key) => source[key]))
+}
+
+const getBooleanValue = (...values) => {
+  const value = values.find((candidate) => candidate !== undefined && candidate !== null && candidate !== '')
+
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'number') {
+    return value === 1
+  }
+
+  if (typeof value === 'string') {
+    return ['true', '1', 'yes', 'y'].includes(value.trim().toLowerCase())
+  }
+
+  return false
+}
+
+const getRevertPermission = (status, ...values) => {
+  const explicitValue = values.find(
+    (candidate) => candidate !== undefined && candidate !== null && candidate !== '',
+  )
+
+  if (explicitValue !== undefined) {
+    return getBooleanValue(explicitValue)
+  }
+
+  return ['REJECTED', 'FAILED', 'RJCT'].includes(String(status || '').trim().toUpperCase())
 }
 
 const normalizeDateInput = (value) => {
@@ -100,6 +136,15 @@ const formatDate = (value) => {
 
   const date = new Date(normalizeDateInput(value))
   return Number.isNaN(date.getTime()) ? '-' : dateFormatter.format(date)
+}
+
+const formatTime = (value) => {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(normalizeDateInput(value))
+  return Number.isNaN(date.getTime()) ? '-' : timeFormatter.format(date)
 }
 
 const getValidDate = (value) => {
@@ -201,6 +246,7 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
       transaction.approvalStatus,
     )),
     paymentDate: formatDate(paymentDate),
+    paymentTime: formatTime(paymentDate),
     paymentDateValue: validPaymentDate ? validPaymentDate.toISOString().slice(0, 10) : '',
     isoPaymentDate: validPaymentDate ? validPaymentDate.toISOString() : new Date().toISOString(),
     channel: getFirstValue(paymentDetails.channel, transaction.channel, 'Fedwire'),
@@ -222,6 +268,39 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
 
   return {
     ...normalized,
+    payaptStatus: getFirstValue(
+      transaction.payaptStatus,
+      transaction.payAptStatus,
+      transaction.pacs002Status,
+      transaction.pacs002ResponseStatus,
+      paymentDetails.payaptStatus,
+      paymentDetails.payAptStatus,
+      paymentDetails.pacs002Status,
+    ),
+    responseType: getFirstValue(
+      transaction.responseType,
+      transaction.messageType,
+      transaction.paymentResponseType,
+      paymentDetails.responseType,
+      xmlDetails.responseType,
+    ),
+    rejectionReason: getFirstValue(
+      transaction.rejectionReason,
+      transaction.rejectReason,
+      transaction.returnReason,
+      transaction.reason,
+      paymentDetails.rejectionReason,
+      paymentDetails.rejectReason,
+      paymentDetails.returnReason,
+      xmlDetails.rejectionReason,
+    ),
+    canRevert: getBooleanValue(
+      transaction.canRevert,
+      transaction.revertAllowed,
+      transaction.canReturn,
+      paymentDetails.canRevert,
+      paymentDetails.revertAllowed,
+    ),
     pacs008Xml: getFirstValue(
       transaction.pacs008Xml,
       transaction.pacs008XML,
@@ -445,6 +524,22 @@ export const approveEmployeeTransaction = async (transactionReference) => {
 export const rejectEmployeeTransaction = async (transactionReference) => {
   const response = await httpClient.post(
     `/api/employee/transactions/${encodeURIComponent(transactionReference)}/reject`,
+    null,
+    {
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
+
+  return parseMaybeJson(response)
+}
+
+export const revertEmployeeTransaction = async (transactionReference) => {
+  const response = await httpClient.post(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/revert`,
     null,
     {
       headers: {

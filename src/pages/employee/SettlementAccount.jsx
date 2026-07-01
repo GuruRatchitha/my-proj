@@ -1,47 +1,102 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchSettlementAccountDetails,
   fetchSettlementTransactions,
+  formatSettlementCurrency,
 } from '../../api/SettlementAccountService'
+import { API_BASE_URL } from '../../api/httpClient'
 import SettlementSummaryCard from './SettlementSummaryCard'
 import SettlementTransactionTable from './SettlementTransactionTable'
 
 const settlementRefreshIntervalMs = 10000
 
+const getSettlementRequestError = (label, error) => {
+  const message = error?.message || 'Request failed.'
+
+  if (error?.isTimeout || message.toLowerCase().includes('timeout')) {
+    return `${label} timed out because the backend at ${API_BASE_URL} did not respond within 30 seconds.`
+  }
+
+  if (error?.isNetworkError) {
+    return `Unable to reach the backend at ${API_BASE_URL}. Start the backend service or set VITE_API_BASE_URL to its address.`
+  }
+
+  return `Unable to load ${label.toLowerCase()}. ${message}`
+}
+
 function SettlementAccount() {
+  const isRequestInFlightRef = useRef(false)
   const [account, setAccount] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
+  const [accountErrorMessage, setAccountErrorMessage] = useState('')
+  const [transactionErrorMessage, setTransactionErrorMessage] = useState('')
   const [lastRefreshedAt, setLastRefreshedAt] = useState('')
 
   const loadSettlementData = useCallback(async (showLoading = true) => {
+    if (isRequestInFlightRef.current) {
+      return
+    }
+
+    isRequestInFlightRef.current = true
+
     try {
       if (showLoading) {
         setIsLoading(true)
       }
 
-      setErrorMessage('')
+      setAccountErrorMessage('')
+      setTransactionErrorMessage('')
 
-      const [nextAccount, nextTransactions] = await Promise.all([
+      const [accountResult, transactionResult] = await Promise.allSettled([
         fetchSettlementAccountDetails(),
         fetchSettlementTransactions(),
       ])
 
-      setAccount(nextAccount)
-      setTransactions(nextTransactions)
-      setLastRefreshedAt(new Date().toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }))
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to load settlement account data.')
-      if (showLoading) {
-        setAccount(null)
-        setTransactions([])
+      if (transactionResult.status === 'fulfilled') {
+        setTransactions(transactionResult.value)
+      } else {
+        setTransactionErrorMessage(
+          getSettlementRequestError('Settlement transaction history', transactionResult.reason),
+        )
+      }
+
+      if (accountResult.status === 'fulfilled') {
+        const nextAccount = accountResult.value
+        const nextTransactions = transactionResult.status === 'fulfilled'
+          ? transactionResult.value
+          : []
+        const calculatedRevertedAmount = nextTransactions
+          .filter((transaction) => transaction.settlementStatus === 'Returned')
+          .reduce((total, transaction) => {
+            const amount = Number(transaction.amount)
+            return total + (Number.isNaN(amount) ? 0 : Math.abs(amount))
+          }, 0)
+        const revertedAmountBalance = nextAccount.hasRevertedAmountBalance
+          ? nextAccount.revertedAmountBalance
+          : calculatedRevertedAmount
+
+        setAccount({
+          ...nextAccount,
+          revertedAmountBalance,
+          formattedRevertedAmountBalance: formatSettlementCurrency(revertedAmountBalance),
+        })
+      } else {
+        setAccountErrorMessage(
+          getSettlementRequestError('Settlement account details', accountResult.reason),
+        )
+      }
+
+      if (accountResult.status === 'fulfilled' || transactionResult.status === 'fulfilled') {
+        setLastRefreshedAt(new Date().toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }))
       }
     } finally {
+      isRequestInFlightRef.current = false
+
       if (showLoading) {
         setIsLoading(false)
       }
@@ -50,6 +105,7 @@ function SettlementAccount() {
 
   useEffect(() => {
     let isMounted = true
+    let refreshTimer
 
     const loadIfMounted = async (showLoading = true) => {
       if (isMounted) {
@@ -57,14 +113,25 @@ function SettlementAccount() {
       }
     }
 
-    loadIfMounted()
-    const refreshTimer = window.setInterval(() => {
-      loadIfMounted(false)
-    }, settlementRefreshIntervalMs)
+    const scheduleRefresh = () => {
+      refreshTimer = window.setTimeout(async () => {
+        await loadIfMounted(false)
+
+        if (isMounted) {
+          scheduleRefresh()
+        }
+      }, settlementRefreshIntervalMs)
+    }
+
+    loadIfMounted().finally(() => {
+      if (isMounted) {
+        scheduleRefresh()
+      }
+    })
 
     return () => {
       isMounted = false
-      window.clearInterval(refreshTimer)
+      window.clearTimeout(refreshTimer)
     }
   }, [loadSettlementData])
 
@@ -99,14 +166,18 @@ function SettlementAccount() {
         </div>
       )}
 
-      {!isLoading && errorMessage && !account && <p className="dashboard-state error">{errorMessage}</p>}
+      {!isLoading && accountErrorMessage && !account && (
+        <p className="dashboard-state error">{accountErrorMessage}</p>
+      )}
 
       {account && <SettlementSummaryCard account={account} />}
 
       <SettlementTransactionTable
         transactions={transactions}
         isLoading={isLoading && transactions.length === 0}
-        errorMessage={account ? errorMessage : ''}
+        errorMessage={transactionErrorMessage}
+        hideMissingReceiverAccountType
+        useDetailedDateTime
       />
     </div>
   )

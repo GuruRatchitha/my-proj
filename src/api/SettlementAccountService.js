@@ -60,42 +60,44 @@ const getDateValue = (value) => {
 const getNormalizedSettlementStatus = (value = '') =>
   value.toString().trim().toUpperCase().replace(/[\s-]+/g, '_')
 
-const getDisplaySettlementStatus = (transaction) => {
-  const statusValues = [transaction.transactionType, transaction.status].filter(Boolean)
-  const settlementStatus = statusValues.find((value) => {
+const getSettlementStatus = (transaction) => {
+  const statusValues = [
+    transaction.queueStatus,
+    transaction.transactionQueueStatus,
+    transaction.paymentStatus,
+    transaction.transactionStatus,
+    transaction.transferStatus,
+    transaction.approvalStatus,
+    transaction.status,
+    transaction.paymentDetails?.status,
+    transaction.payment?.status,
+    transaction.pacs002Status,
+    transaction.transactionType,
+  ].filter(Boolean)
+
+  const isReturned = statusValues.some((value) => {
     const normalizedValue = getNormalizedSettlementStatus(value)
-    return normalizedValue.includes('DEBIT') || normalizedValue.includes('CREDIT')
+    return normalizedValue === 'RJCT' || normalizedValue.includes('REJECT') ||
+      normalizedValue.includes('RETURN') || normalizedValue.includes('REVERT')
   })
-  const statusText = settlementStatus || getFirstValue(transaction.status, transaction.transactionType)
-  const normalizedStatus = getNormalizedSettlementStatus(statusText)
+
+  if (isReturned) {
+    return 'Returned'
+  }
+
+  const normalizedStatus = statusValues
+    .map(getNormalizedSettlementStatus)
+    .find((value) => value.includes('DEBIT') || value.includes('CREDIT')) || ''
 
   if (normalizedStatus.includes('DEBIT')) {
-    return 'Debited From Settlement'
+    return 'Debited'
   }
 
   if (normalizedStatus.includes('CREDIT')) {
-    return 'Credited To Settlement'
+    return 'Credited'
   }
 
-  return statusText || '-'
-}
-
-const getSettlementAccountNumber = (transaction) => {
-  if (transaction.accountNumber) {
-    return transaction.accountNumber
-  }
-
-  const displayStatus = getDisplaySettlementStatus(transaction)
-
-  if (displayStatus === 'Debited From Settlement') {
-    return transaction.beneficiaryAccountNumber || '-'
-  }
-
-  if (displayStatus === 'Credited To Settlement') {
-    return transaction.senderAccountNumber || '-'
-  }
-
-  return transaction.senderAccountNumber || transaction.beneficiaryAccountNumber || '-'
+  return '-'
 }
 
 const getTransactionSortValue = (transaction) => {
@@ -143,6 +145,10 @@ const normalizeSettlementTransactionCollection = (response) => {
     return response.settlementTransactions
   }
 
+  if (Array.isArray(response?.transactionHistory)) {
+    return response.transactionHistory
+  }
+
   if (Array.isArray(response?.data)) {
     return response.data
   }
@@ -159,6 +165,10 @@ const normalizeSettlementTransactionCollection = (response) => {
     return response.data.settlementTransactions
   }
 
+  if (Array.isArray(response?.data?.transactionHistory)) {
+    return response.data.transactionHistory
+  }
+
   if (Array.isArray(response)) {
     return response
   }
@@ -168,12 +178,25 @@ const normalizeSettlementTransactionCollection = (response) => {
 
 export const normalizeSettlementAccount = (account = {}) => {
   const currentBalance = getFirstValue(account.currentBalance, account.balance, account.availableBalance, 0)
+  const revertedAmountValues = [
+    account.revertedAmountBalance,
+    account.totalRevertedAmount,
+    account.returnedAmountBalance,
+    account.revertedBalance,
+  ]
+  const hasRevertedAmountBalance = revertedAmountValues.some(
+    (value) => value !== undefined && value !== null && value !== '',
+  )
+  const revertedAmountBalance = getFirstValue(...revertedAmountValues, 0)
 
   return {
     accountNumber: getFirstValue(account.accountNumber, account.settlementAccountNumber, account.number),
     accountName: getFirstValue(account.accountName, account.name, account.accountHolderName, 'Settlement Account'),
     currentBalance,
     formattedCurrentBalance: formatSettlementCurrency(currentBalance),
+    revertedAmountBalance,
+    formattedRevertedAmountBalance: formatSettlementCurrency(revertedAmountBalance),
+    hasRevertedAmountBalance,
     accountType: toTitleCase(getFirstValue(account.accountType, account.type, 'Settlement')),
     lastUpdated: getFirstValue(account.lastUpdated, account.updatedAt, account.updatedDate, account.modifiedAt),
     formattedLastUpdated: formatSettlementDateTime(
@@ -183,10 +206,21 @@ export const normalizeSettlementAccount = (account = {}) => {
 }
 
 export const normalizeSettlementTransaction = (transaction = {}, index = 0) => {
+  const senderDetails = transaction.senderDetails || transaction.sender || transaction.debtor || {}
+  const receiverDetails = transaction.receiverDetails || transaction.receiver ||
+    transaction.beneficiaryDetails || transaction.beneficiary || {}
+  const paymentDetails = transaction.paymentDetails || transaction.payment || {}
   const amount = getFirstValue(transaction.amount, transaction.settlementAmount, transaction.transactionAmount, 0)
   const status = toTitleCase(getFirstValue(transaction.status))
   const transactionType = toTitleCase(getFirstValue(transaction.transactionType))
-  const createdDate = getFirstValue(transaction.createdDate, transaction.createdAt, transaction.createdOn)
+  const dateTime = getFirstValue(
+    transaction.dateTime,
+    transaction.createdDate,
+    transaction.createdAt,
+    transaction.createdOn,
+    transaction.transactionDate,
+    transaction.paymentDate,
+  )
   const updatedDate = getFirstValue(transaction.updatedDate, transaction.updatedAt, transaction.modifiedAt)
 
   return {
@@ -201,13 +235,54 @@ export const normalizeSettlementTransaction = (transaction = {}, index = 0) => {
       transaction.senderAccountNumber,
       transaction.debtorAccountNumber,
       transaction.fromAccountNumber,
+      senderDetails.accountNumber,
+      senderDetails.senderAccountNumber,
     ),
+    senderName: getFirstValue(
+      transaction.senderName,
+      transaction.debtorName,
+      transaction.customerName,
+      senderDetails.name,
+      senderDetails.senderName,
+    ),
+    senderAccountType: toTitleCase(getFirstValue(
+      transaction.senderAccountType,
+      transaction.debtorAccountType,
+      transaction.sourceAccountType,
+      transaction.accountType,
+      senderDetails.accountType,
+      senderDetails.senderAccountType,
+    )),
     beneficiaryAccountNumber: getFirstValue(
       transaction.beneficiaryAccountNumber,
       transaction.receiverAccountNumber,
       transaction.creditorAccountNumber,
       transaction.toAccountNumber,
+      receiverDetails.accountNumber,
+      receiverDetails.receiverAccountNumber,
     ),
+    receiverAccountNumber: getFirstValue(
+      transaction.receiverAccountNumber,
+      transaction.beneficiaryAccountNumber,
+      transaction.creditorAccountNumber,
+      transaction.toAccountNumber,
+      receiverDetails.accountNumber,
+      receiverDetails.receiverAccountNumber,
+    ),
+    receiverName: getFirstValue(
+      transaction.receiverName,
+      transaction.beneficiaryName,
+      transaction.creditorName,
+      receiverDetails.name,
+      receiverDetails.receiverName,
+    ),
+    receiverAccountType: toTitleCase(getFirstValue(
+      transaction.receiverAccountType,
+      transaction.beneficiaryAccountType,
+      transaction.creditorAccountType,
+      receiverDetails.accountType,
+      receiverDetails.receiverAccountType,
+    )),
     settlementAccountNumber: getFirstValue(
       transaction.settlementAccountNumber,
       transaction.accountNumber,
@@ -218,13 +293,35 @@ export const normalizeSettlementTransaction = (transaction = {}, index = 0) => {
     formattedAmount: formatSettlementCurrency(amount),
     transactionType,
     status,
+    settlementStatus: getSettlementStatus(transaction),
+    paymentStatus: toTitleCase(getFirstValue(
+      transaction.paymentStatus,
+      transaction.transactionStatus,
+      transaction.transferStatus,
+      paymentDetails.status,
+    )),
+    queueStatus: toTitleCase(getFirstValue(
+      transaction.queueStatus,
+      transaction.transactionQueueStatus,
+      transaction.approvalStatus,
+    )),
+    uetr: getFirstValue(
+      transaction.uetr,
+      transaction.uetrId,
+      transaction.pacs008Uetr,
+      transaction.pacs008UETR,
+      paymentDetails.uetr,
+      paymentDetails.uetrId,
+    ),
     pacs008MessageId: getFirstValue(transaction.pacs008MessageId, transaction.pacs008MsgId, transaction.messageId),
     pacs002Status: toTitleCase(getFirstValue(transaction.pacs002Status, transaction.pacs002ResponseStatus, '-')),
-    createdDate,
+    dateTime,
+    createdDate: dateTime,
     updatedDate,
-    formattedCreatedDate: formatSettlementDateTime(createdDate),
+    formattedDateTime: formatSettlementDateTime(dateTime),
+    formattedCreatedDate: formatSettlementDateTime(dateTime),
     formattedUpdatedDate: formatSettlementDateTime(updatedDate),
-    createdDateValue: getDateValue(createdDate),
+    createdDateValue: getDateValue(dateTime),
   }
 }
 
@@ -244,13 +341,4 @@ export const fetchLatestSettlementTransactions = async () => {
   return [...transactions]
     .sort(compareSettlementTransactions)
     .slice(0, 5)
-    .map((transaction) => ({
-      id: transaction.id,
-      paymentId: transaction.paymentId,
-      accountNumber: getSettlementAccountNumber(transaction),
-      amount: transaction.amount,
-      formattedAmount: transaction.formattedAmount,
-      status: getDisplaySettlementStatus(transaction),
-      createdDate: transaction.createdDate,
-    }))
 }

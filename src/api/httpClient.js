@@ -1,7 +1,11 @@
 import axios from 'axios'
 import { getStoredUserId } from './currentUser'
 
-const API_BASE_URL = 'http://localhost:8080'
+// Keep localhost as the development default, but allow each environment to
+// point at the backend it actually runs. Vite exposes only VITE_* variables.
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+).replace(/\/$/, '')
 
 const httpClient = axios.create({
   baseURL: API_BASE_URL,
@@ -54,6 +58,9 @@ httpClient.interceptors.response.use(
 
     return Promise.reject({
       message,
+      code: error.code,
+      isTimeout: error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT',
+      isNetworkError: error.code === 'ERR_NETWORK' && !error.response,
       status: error.response?.status,
       data: error.response?.data,
     })

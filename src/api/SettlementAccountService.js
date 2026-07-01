@@ -245,6 +245,11 @@ export const normalizeSettlementTransaction = (transaction = {}, index = 0) => {
       `SETTLEMENT-${index + 1}`,
     ),
     paymentId: getFirstValue(transaction.paymentId, transaction.paymentID, transaction.paymentReference),
+    // The ledger service determines the parties for each movement (credit,
+    // beneficiary debit, or revert). Keep its display values intact instead
+    // of trying to infer the direction again in the browser.
+    senderDisplay: transaction.senderDisplay ?? null,
+    receiverDisplay: transaction.receiverDisplay ?? null,
     senderAccountNumber: getFirstValue(
       transaction.senderAccountNumber,
       transaction.debtorAccountNumber,

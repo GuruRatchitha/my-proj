@@ -41,12 +41,51 @@ const formatSignedAmount = (transaction) => {
   return formattedAmount
 }
 
-function PartyDetails({ accountNumber, name, accountType, hideMissingAccountType = false }) {
+const hasDisplayValue = (display) =>
+  display !== undefined && display !== null && display !== ''
+
+const isSettlementAccountType = (value) =>
+  String(value ?? '').trim().toUpperCase() === 'SETTLEMENT'
+
+const getDisplayText = (display) => {
+  if (Array.isArray(display)) {
+    return display
+      .filter((value) => value !== undefined && value !== null && value !== '')
+      .filter((value) => !isSettlementAccountType(value))
+      .join('\n')
+  }
+
+  if (typeof display === 'object') {
+    return [
+      display.accountNumber,
+      display.name ?? display.accountName,
+      display.accountType ?? display.details,
+    ].filter((value) => value !== undefined && value !== null && value !== '')
+      .filter((value) => !isSettlementAccountType(value))
+      .join('\n')
+  }
+
+  return String(display)
+    .split(/\r?\n/)
+    .filter((line) => !isSettlementAccountType(line))
+    .join('\n')
+}
+
+function PartyDetails({ display, accountNumber, name, accountType, hideMissingAccountType = false }) {
+  if (hasDisplayValue(display)) {
+    return (
+      <div className="settlement-party-details settlement-party-display">
+        {getDisplayText(display)}
+      </div>
+    )
+  }
+
   return (
     <div className="settlement-party-details">
       <strong>{accountNumber || '-'}</strong>
       <span>{name || '-'}</span>
-      {(!hideMissingAccountType || accountType) && <small>{accountType || '-'}</small>}
+      {!isSettlementAccountType(accountType) &&
+        (!hideMissingAccountType || accountType) && <small>{accountType || '-'}</small>}
     </div>
   )
 }
@@ -183,6 +222,7 @@ function SettlementTransactionTable({
                 <td>{transaction.paymentId || '-'}</td>
                 <td>
                   <PartyDetails
+                    display={transaction.senderDisplay}
                     accountNumber={transaction.senderAccountNumber}
                     name={transaction.senderName}
                     accountType={transaction.senderAccountType}
@@ -190,6 +230,7 @@ function SettlementTransactionTable({
                 </td>
                 <td>
                   <PartyDetails
+                    display={transaction.receiverDisplay}
                     accountNumber={transaction.receiverAccountNumber}
                     name={transaction.receiverName}
                     accountType={transaction.receiverAccountType}

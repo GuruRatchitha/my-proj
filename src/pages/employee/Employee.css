@@ -1337,6 +1337,10 @@
   overflow-wrap: anywhere;
 }
 
+.settlement-party-display {
+  white-space: pre-line;
+}
+
 .settlement-party-details strong {
   color: #111827;
   font-size: 12px;

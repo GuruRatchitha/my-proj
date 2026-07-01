@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-const rowsPerPageOptions = [5, 10, 20]
+const defaultRowsPerPage = 5
 
 const getNormalizedTransactionType = (transactionType = '') =>
   transactionType.toString().trim().toUpperCase().replace(/[\s-]+/g, '_')
@@ -11,21 +11,56 @@ const isDebitedTransaction = (transactionType = '') =>
 const isCreditedTransaction = (transactionType = '') =>
   getNormalizedTransactionType(transactionType).includes('CREDIT')
 
-const getDisplayStatus = (transaction) =>
-  transaction.status || transaction.transactionType || '-'
-
-const getDisplayAccountNumber = (transaction) => {
-  const displayStatus = getDisplayStatus(transaction)
-
-  if (isDebitedTransaction(displayStatus)) {
-    return transaction.beneficiaryAccountNumber || '-'
+const formatDetailedDateTime = (dateTime, fallback = '-') => {
+  if (!dateTime) {
+    return fallback || '-'
   }
 
-  if (isCreditedTransaction(displayStatus)) {
-    return transaction.senderAccountNumber || '-'
+  const date = new Date(dateTime)
+
+  if (Number.isNaN(date.getTime())) {
+    return fallback || '-'
   }
 
-  return transaction.senderAccountNumber || transaction.beneficiaryAccountNumber || '-'
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+const formatSignedAmount = (transaction) => {
+  const amount = transaction.formattedAmount || transaction.amount || '-'
+
+  if (amount === '-') {
+    return amount
+  }
+
+  if (isDebitedTransaction(transaction.settlementStatus || transaction.status)) {
+    return amount.toString().startsWith('-') ? amount : `-${amount}`
+  }
+
+  if (isCreditedTransaction(transaction.settlementStatus || transaction.status)) {
+    return amount.toString().startsWith('+') ? amount : `+${amount}`
+  }
+
+  return amount
+}
+
+function PartyDetails({ display, accountNumber, name, accountType, hideMissingAccountType = false }) {
+  const primaryText = display?.name || name || '-'
+  const accountText = accountNumber || '-'
+  const accountTypeText = accountType || (hideMissingAccountType ? '' : '-')
+  return (
+    <div className="settlement-party-details">
+      <strong>{primaryText}</strong>
+      <span>{accountText}</span>
+      {accountTypeText && <small>{accountTypeText}</small>}
+    </div>
+  )
 }
 
 function SettlementTransactionTable({
@@ -43,6 +78,7 @@ function SettlementTransactionTable({
   const [paymentSearch, setPaymentSearch] = useState('')
   const [dateSort, setDateSort] = useState('newest')
   const [currentPage, setCurrentPage] = useState(1)
+  const rowsPerPage = defaultRowsPerPage
 
   const filteredTransactions = useMemo(() => {
     const normalizedPaymentSearch = paymentSearch.trim().toLowerCase()
@@ -127,7 +163,7 @@ function SettlementTransactionTable({
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan="4">
+                <td colSpan="7">
                   <div className="settlement-loading-state" role="status">
                     <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
                     <span>Loading settlement transactions...</span>

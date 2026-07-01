@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchEmployeeTransactions } from '../../api/employeeTransactions'
+import { fetchEmployeeTransactions, revertEmployeeTransaction } from '../../api/employeeTransactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPage = 10
 const statusOptions = [

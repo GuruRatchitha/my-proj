@@ -594,92 +594,6 @@ function DetailCard({ title, fields, source }) {
   )
 }
 
-function XmlPlaceholder() {
-  return (
-    <div className="employee-xml-placeholder">
-      <i className="bi bi-hourglass-split" aria-hidden="true"></i>
-      <strong>Not received yet</strong>
-      <span>Waiting for message generation...</span>
-    </div>
-  )
-}
-
-function XmlReasonCard({ title, children }) {
-  if (!children) {
-    return null
-  }
-
-  return (
-    <div className="employee-xml-reason-card">
-      <strong>{title}</strong>
-      <span>{children}</span>
-    </div>
-  )
-}
-
-function XmlPanel({
-  children,
-  content,
-  error,
-  errorDetail,
-  isAvailable,
-  isCopied,
-  isLoading,
-  loadingMessage,
-  messageType,
-  onCopy,
-  onRetry,
-}) {
-  return (
-    <div
-      className={`employee-xml-panel ${!isAvailable && !error ? 'empty' : ''}`}
-      role="tabpanel"
-    >
-      <div className="employee-xml-toolbar">
-        <button
-          className="employee-xml-copy-button"
-          type="button"
-          disabled={!isAvailable || Boolean(error)}
-          onClick={() => onCopy(content, messageType)}
-          aria-label={`Copy ${messageType} XML`}
-          title={`Copy ${messageType} XML`}
-        >
-          <i className={`bi ${isCopied ? 'bi-check-lg' : 'bi-copy'}`} aria-hidden="true"></i>
-        </button>
-      </div>
-      {isLoading && (
-        <div className="employee-xml-loading" role="status" aria-live="polite">
-          {loadingMessage}
-        </div>
-      )}
-      {error ? (
-        <div className="employee-xml-state error" role="alert">
-          <strong>{error}</strong>
-          {errorDetail && <span>{errorDetail}</span>}
-          {onRetry && (
-            <button
-              className="profile-action-button secondary-action"
-              type="button"
-              onClick={onRetry}
-            >
-              Retry
-            </button>
-          )}
-        </div>
-      ) : isAvailable ? (
-        <>
-          {children}
-          <pre>
-            <code>{content}</code>
-          </pre>
-        </>
-      ) : (
-        <XmlPlaceholder />
-      )}
-    </div>
-  )
-}
-
 function CopyableValue({ value, onCopy, isCopied }) {
   return (
     <span className="employee-copyable-value">
@@ -996,6 +910,7 @@ function TransactionDetails() {
   const isPacs008Available = pacs008Status === 'ready' || hasXmlContent(pacs008DisplayContent)
   const isPacs002Available = pacs002Status === 'ready' || hasXmlContent(pacs002DisplayContent)
   const isAdmi002Available = admi002Status === 'ready' || hasXmlContent(admi002DisplayContent)
+  const hasAvailableXml = isPacs008Available || isPacs002Available || isAdmi002Available
   const visibleActiveTab = ['xml', 'pacs002', 'admi002'].includes(activeTab) ? activeTab : 'xml'
 
   const handleCopyValue = async (value, field = 'uetr') => {
@@ -1123,6 +1038,10 @@ function TransactionDetails() {
     : backendRejectionReason || xmlRejectReason
   const payaptStatus = getPayaptStatus(transaction, processingPipeline)
   const transactionStatus = getPaymentStatus(transaction, processingPipeline, isAdmi002Available)
+  const pacs002PendingMessage = payaptStatus === 'RJCT'
+    ? 'PACS.002 has not been received yet.'
+    : 'PACS.002 will be available after PayApt responds.'
+  const admi002PendingMessage = 'ADMI.002 will be available if validation fails.'
   const isReturnStatus = payaptStatus === 'RJCT'
   const isReverted = normalizeLifecycleValue(transactionStatus) === 'REVERTED'
   const areReviewActionsDisabled = isActionInProgress || isFinalStatus(transactionStatus)
@@ -1180,24 +1099,41 @@ function TransactionDetails() {
           <span className={`transaction-status ${getStatusClass(transactionStatus)}`}>
             {transactionStatus}
           </span>
-          <button
-            className="profile-action-button secondary-action employee-reject-action"
-            type="button"
-            disabled={areReviewActionsDisabled}
-            onClick={() => handleReviewAction('reject')}
-          >
-            {activeAction === 'reject' ? (
-              <LoadingSpinner label="Rejecting" size="sm" variant="button" />
-            ) : 'Reject'}
-          </button>
-          <button
-            className="profile-action-button primary-action"
-            type="button"
-            disabled={areReviewActionsDisabled}
-            onClick={() => handleReviewAction('approve')}
-          >
-            {activeAction === 'approve' ? 'Approving...' : 'Approve'}
-          </button>
+          {isReturnStatus ? (
+            <button
+              className="profile-action-button primary-action employee-revert-action"
+              type="button"
+              disabled={isRevertDisabled}
+              onClick={handleRevert}
+            >
+              {activeAction === 'revert' ? (
+                <LoadingSpinner label="Reverting" size="sm" variant="button" />
+              ) : 'Revert'}
+            </button>
+          ) : (
+            <>
+              <button
+                className="profile-action-button secondary-action employee-reject-action"
+                type="button"
+                disabled={areReviewActionsDisabled}
+                onClick={() => handleReviewAction('reject')}
+              >
+                {activeAction === 'reject' ? (
+                  <LoadingSpinner label="Rejecting" size="sm" variant="button" />
+                ) : 'Reject'}
+              </button>
+              <button
+                className="profile-action-button primary-action"
+                type="button"
+                disabled={areReviewActionsDisabled}
+                onClick={() => handleReviewAction('approve')}
+              >
+                {activeAction === 'approve' ? (
+                  <LoadingSpinner label="Approving" size="sm" variant="button" />
+                ) : 'Approve'}
+              </button>
+            </>
+          )}
         </div>
       </section>
 

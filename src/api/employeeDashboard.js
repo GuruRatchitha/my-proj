@@ -87,7 +87,6 @@ const fetchAllCustomers = async () => {
       }),
     ),
   )
-
   return [firstResponse, ...remainingPages]
     .flatMap((response) => getCollection(response, ['customers']))
 }

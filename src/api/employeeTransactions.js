@@ -13,6 +13,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
 })
 
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: '2-digit',
@@ -120,6 +126,15 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? '-' : dateFormatter.format(date)
 }
 
+const formatTime = (value) => {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(normalizeDateInput(value))
+  return Number.isNaN(date.getTime()) ? '-' : timeFormatter.format(date)
+}
+
 const getValidDate = (value) => {
   if (!value) {
     return null
@@ -219,6 +234,7 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
       transaction.approvalStatus,
     )),
     paymentDate: formatDate(paymentDate),
+    paymentTime: formatTime(paymentDate),
     paymentDateValue: validPaymentDate ? validPaymentDate.toISOString().slice(0, 10) : '',
     isoPaymentDate: validPaymentDate ? validPaymentDate.toISOString() : new Date().toISOString(),
     channel: getFirstValue(paymentDetails.channel, transaction.channel, 'Fedwire'),
@@ -265,6 +281,38 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
       paymentDetails.rejectReason,
       paymentDetails.returnReason,
       xmlDetails.rejectionReason,
+    ),
+    pacs002Reason: getFirstValue(
+      transaction.pacs002Reason,
+      transaction.pacs002RejectReason,
+      transaction.pacs002RejectionReason,
+      paymentDetails.pacs002Reason,
+      paymentDetails.pacs002RejectReason,
+      paymentDetails.pacs002RejectionReason,
+      xmlDetails.pacs002Reason,
+      xmlDetails.pacs002RejectReason,
+      xmlDetails.pacs002RejectionReason,
+    ),
+    admi002Reason: getFirstValue(
+      transaction.admi002Reason,
+      transaction.admi002RejectReason,
+      transaction.admi002ValidationReason,
+      paymentDetails.admi002Reason,
+      paymentDetails.admi002RejectReason,
+      paymentDetails.admi002ValidationReason,
+      xmlDetails.admi002Reason,
+      xmlDetails.admi002RejectReason,
+      xmlDetails.admi002ValidationReason,
+    ),
+    uetr: getFirstValue(
+      transaction.uetr,
+      transaction.UETR,
+      transaction.uniqueEndToEndTransactionReference,
+      paymentDetails.uetr,
+      paymentDetails.UETR,
+      paymentDetails.uniqueEndToEndTransactionReference,
+      xmlDetails.uetr,
+      xmlDetails.UETR,
     ),
     canRevert: getBooleanValue(
       transaction.canRevert,

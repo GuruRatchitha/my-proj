@@ -10,6 +10,7 @@ import {
   rejectEmployeeTransaction,
   revertEmployeeTransaction,
 } from '../../api/employeeTransactions'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const detailSections = [
   {
@@ -502,7 +503,7 @@ function ProcessingPipeline({ steps, isLoading, errorMessage }) {
           <span>{steps.length} Steps</span>
           {isLoading && (
             <span className="processing-pipeline-refresh" role="status">
-              Refreshing
+              <LoadingSpinner label="Refreshing" size="sm" variant="inline" />
             </span>
           )}
         </div>
@@ -524,8 +525,6 @@ function ProcessingPipeline({ steps, isLoading, errorMessage }) {
               <div className={`processing-pipeline-marker ${visualState}`}>
                 {visualState === 'running' ? (
                   <span className="processing-pipeline-spinner" aria-hidden="true" />
-                ) : visualState === 'inactive' ? (
-                  <span className="processing-pipeline-marker-dot" aria-hidden="true" />
                 ) : (
                   <i
                     className={`bi ${
@@ -1078,7 +1077,9 @@ function TransactionDetails() {
   if (isLoading) {
     return (
       <div className="dashboard-main">
-        <p className="dashboard-state">Loading transaction details...</p>
+        <p className="dashboard-state">
+          <LoadingSpinner label="Loading transaction details" variant="inline" />
+        </p>
       </div>
     )
   }
@@ -1185,27 +1186,18 @@ function TransactionDetails() {
             disabled={areReviewActionsDisabled}
             onClick={() => handleReviewAction('reject')}
           >
-            {activeAction === 'reject' ? 'Rejecting...' : 'Reject'}
+            {activeAction === 'reject' ? (
+              <LoadingSpinner label="Rejecting" size="sm" variant="button" />
+            ) : 'Reject'}
           </button>
-          {isReturnStatus ? (
-            <button
-              className="profile-action-button primary-action employee-revert-action"
-              type="button"
-              disabled={isRevertDisabled}
-              onClick={handleRevert}
-            >
-              {activeAction === 'revert' ? 'Reverting...' : 'Revert'}
-            </button>
-          ) : (
-            <button
-              className="profile-action-button primary-action"
-              type="button"
-              disabled={areReviewActionsDisabled}
-              onClick={() => handleReviewAction('approve')}
-            >
-              {activeAction === 'approve' ? 'Approving...' : 'Approve'}
-            </button>
-          )}
+          <button
+            className="profile-action-button primary-action"
+            type="button"
+            disabled={areReviewActionsDisabled}
+            onClick={() => handleReviewAction('approve')}
+          >
+            {activeAction === 'approve' ? 'Approving...' : 'Approve'}
+          </button>
         </div>
       </section>
 
@@ -1298,54 +1290,105 @@ function TransactionDetails() {
             </button>
           </div>
 
-          {visibleActiveTab === 'xml' && (
-            <XmlPanel
-              content={pacs008DisplayContent}
-              isAvailable={isPacs008Available}
-              isCopied={copiedField === 'pacs008'}
-              isLoading={isXmlLoading}
-              loadingMessage="Loading PACS.008 XML..."
-              messageType="PACS.008"
-              onCopy={(value) => handleCopyValue(value, 'pacs008')}
-            />
+          {!hasAvailableXml && (
+            <div className="employee-xml-state">
+              <strong>
+                {isXmlLoading || isPacs002Loading || isAdmi002Loading
+                  ? 'Loading available XML messages...'
+                  : 'No XML messages are available for this transaction.'}
+              </strong>
+            </div>
           )}
 
-          {visibleActiveTab === 'pacs002' && (
-            <XmlPanel
-              content={pacs002DisplayContent}
-              error={pacs002Status === 'error' ? 'Unable to load PACS.002 XML.' : ''}
-              errorDetail={pacs002Status === 'error' ? `HTTP status: ${pacs002ErrorStatus}` : ''}
-              isAvailable={isPacs002Available}
-              isCopied={copiedField === 'pacs002'}
-              isLoading={isPacs002Loading}
-              loadingMessage="Loading PACS.002 XML..."
-              messageType="PACS.002"
-              onCopy={(value) => handleCopyValue(value, 'pacs002')}
-              onRetry={loadPacs002Xml}
-            >
-              <XmlReasonCard title="Reason for Rejection">
-                {pacs002Reason}
-              </XmlReasonCard>
-            </XmlPanel>
+          {visibleActiveTab === 'xml' && isPacs008Available && (
+            <div className="employee-xml-panel" role="tabpanel">
+              {isXmlLoading && (
+                <div className="employee-xml-loading" role="status" aria-live="polite">
+                  Loading PACS.008 XML...
+                </div>
+              )}
+              <pre>
+                <code>{pacs008DisplayContent}</code>
+              </pre>
+            </div>
           )}
 
-          {visibleActiveTab === 'admi002' && (
-            <XmlPanel
-              content={admi002DisplayContent}
-              error={admi002Status === 'error' ? 'Unable to load ADMI.002 XML.' : ''}
-              errorDetail={admi002Status === 'error' ? admi002ErrorMessage : ''}
-              isAvailable={isAdmi002Available}
-              isCopied={copiedField === 'admi002'}
-              isLoading={isAdmi002Loading}
-              loadingMessage="Loading ADMI.002 XML..."
-              messageType="ADMI.002"
-              onCopy={(value) => handleCopyValue(value, 'admi002')}
-              onRetry={loadAdmi002Xml}
-            >
-              <XmlReasonCard title="Validation Failure">
-                {admi002Reason}
-              </XmlReasonCard>
-            </XmlPanel>
+          {visibleActiveTab === 'pacs002' && isPacs002Available && (
+            <div className="employee-xml-panel" role="tabpanel">
+              {isPacs002Loading && (
+                <div className="employee-xml-loading" role="status" aria-live="polite">
+                  Loading PACS.002 XML...
+                </div>
+              )}
+              {pacs002Status === 'error' ? (
+                <div className="employee-xml-state error" role="alert">
+                  <strong>Unable to load PACS.002 XML.</strong>
+                  <span>HTTP status: {pacs002ErrorStatus}</span>
+                  <button
+                    className="profile-action-button secondary-action"
+                    type="button"
+                    onClick={loadPacs002Xml}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : pacs002Status === 'empty' && !hasXmlContent(pacs002DisplayContent) ? (
+                <div className="employee-xml-state">
+                  <strong>{pacs002PendingMessage}</strong>
+                </div>
+              ) : (
+                <pre>
+                  <code>{pacs002DisplayContent}</code>
+                </pre>
+              )}
+            </div>
+          )}
+
+          {visibleActiveTab === 'admi002' && isAdmi002Available && (
+            <div className="employee-xml-panel" role="tabpanel">
+              {isAdmi002Loading && (
+                <div className="employee-xml-loading" role="status" aria-live="polite">
+                  Loading ADMI.002 XML...
+                </div>
+              )}
+              {admi002Status === 'error' ? (
+                <div className="employee-xml-state error" role="alert">
+                  <strong>Unable to load ADMI.002 XML.</strong>
+                  <span>{admi002ErrorMessage}</span>
+                  <button
+                    className="profile-action-button secondary-action"
+                    type="button"
+                    onClick={loadAdmi002Xml}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : admi002Status === 'empty' && !hasXmlContent(admi002DisplayContent) ? (
+                <div className="employee-xml-state">
+                  <strong>{admi002PendingMessage}</strong>
+                </div>
+              ) : (
+                <>
+                  {admi002RejectReason && (
+                    <div className="employee-xml-summary">
+                      <dl>
+                        <div>
+                          <dt>Reject Code:</dt>
+                          <dd>{admi002RejectReason.code}</dd>
+                        </div>
+                        <div>
+                          <dt>Reject Description:</dt>
+                          <dd>{admi002RejectReason.description}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  )}
+                  <pre>
+                    <code>{admi002DisplayContent}</code>
+                  </pre>
+                </>
+              )}
+            </div>
           )}
         </section>
       </section>

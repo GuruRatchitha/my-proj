@@ -3,7 +3,6 @@ import {
   fetchSettlementAccountDetails,
   fetchSettlementTransactions,
 } from '../../api/SettlementAccountService'
-import { API_BASE_URL } from '../../api/httpClient'
 import SettlementSummaryCard from './SettlementSummaryCard'
 import SettlementTransactionTable from './SettlementTransactionTable'
 
@@ -144,7 +143,9 @@ function SettlementAccount() {
           disabled={isLoading}
         >
           <i className="bi bi-arrow-clockwise" aria-hidden="true"></i>
-          {isLoading ? 'Refreshing...' : 'Refresh'}
+          {isLoading ? (
+            <LoadingSpinner label="Refreshing" size="sm" variant="button" />
+          ) : 'Refresh'}
         </button>
       </section>
 
@@ -155,9 +156,8 @@ function SettlementAccount() {
       </div>
 
       {isLoading && !account && (
-        <div className="settlement-page-loading" role="status">
-          <span className="spinner-border" aria-hidden="true"></span>
-          <span>Loading settlement account...</span>
+        <div className="settlement-page-loading">
+          <LoadingSpinner label="Loading settlement account" size="lg" />
         </div>
       )}
 

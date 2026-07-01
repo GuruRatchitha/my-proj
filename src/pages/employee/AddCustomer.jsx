@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createCustomer, fetchCustomerById, updateCustomer } from '../../api/customers'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const initialCustomerForm = {
   aadharNumber: '',
@@ -117,7 +118,7 @@ function AddCustomer() {
   const pageTitle = isEditMode ? 'Edit Customer' : 'Add Customer'
   const submitLabel = useMemo(() => {
     if (isSubmitting) {
-      return isEditMode ? 'Updating...' : 'Creating...'
+      return isEditMode ? 'Updating' : 'Creating'
     }
 
     return isEditMode ? 'Update Customer' : 'Create Customer'
@@ -384,9 +385,8 @@ function AddCustomer() {
       {submitError && <p className="dashboard-state error">{submitError}</p>}
 
       {isLoadingCustomer ? (
-        <div className="section-loader inline-section-loader" role="status" aria-live="polite">
-          <span className="section-loader-spinner" aria-hidden="true"></span>
-          <span>Loading customer details...</span>
+        <div className="section-loader inline-section-loader">
+          <LoadingSpinner label="Loading customer details" />
         </div>
       ) : (
         <form className="employee-customer-form" onSubmit={handleSubmit} noValidate>
@@ -588,7 +588,9 @@ function AddCustomer() {
             </button>
             <button className="profile-action-button primary-action" type="submit" disabled={isSubmitting}>
               <i className="bi bi-check-circle" aria-hidden="true"></i>
-              {submitLabel}
+              {isSubmitting ? (
+                <LoadingSpinner label={submitLabel} size="sm" variant="button" />
+              ) : submitLabel}
             </button>
           </div>
         </form>

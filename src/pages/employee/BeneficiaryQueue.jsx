@@ -4,6 +4,7 @@ import {
   fetchEmployeeBeneficiariesByStatus,
   rejectBeneficiary,
 } from '../../api/beneficiaries'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -250,9 +251,8 @@ function BeneficiaryQueue() {
       <section className="employee-queue-list" aria-label={`${activeTab.label} beneficiaries`}>
         {isLoading && (
           <div className="transaction-list">
-            <div className="section-loader" role="status" aria-live="polite">
-              <span className="section-loader-spinner" aria-hidden="true"></span>
-              <span>Loading beneficiaries...</span>
+            <div className="section-loader">
+              <LoadingSpinner label="Loading beneficiaries" />
             </div>
           </div>
         )}
@@ -322,7 +322,9 @@ function BeneficiaryQueue() {
                     onClick={() => openRejectDialog(request)}
                   >
                     <i className="bi bi-x-circle" aria-hidden="true"></i>
-                    {isActiveRequest ? 'Updating...' : 'Reject'}
+                    {isActiveRequest ? (
+                      <LoadingSpinner label="Updating" size="sm" variant="button" />
+                    ) : 'Reject'}
                   </button>
                   <button
                     className="profile-action-button primary-action"
@@ -331,7 +333,9 @@ function BeneficiaryQueue() {
                     onClick={() => handleReviewAction(request, 'approve')}
                   >
                     <i className="bi bi-check-circle" aria-hidden="true"></i>
-                    {isActiveRequest ? 'Updating...' : 'Approve'}
+                    {isActiveRequest ? (
+                      <LoadingSpinner label="Updating" size="sm" variant="button" />
+                    ) : 'Approve'}
                   </button>
                 </div>
               </div>
@@ -374,7 +378,9 @@ function BeneficiaryQueue() {
                   Cancel
                 </button>
                 <button className="profile-action-button primary-action" type="submit" disabled={!rejectionReason.trim() || Boolean(activeRequestId)}>
-                  Reject
+                  {activeRequestId ? (
+                    <LoadingSpinner label="Rejecting" size="sm" variant="button" />
+                  ) : 'Reject'}
                 </button>
               </div>
             </form>

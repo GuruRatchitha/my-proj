@@ -1,93 +1,31 @@
 import { useMemo, useState } from 'react'
-import { formatSettlementCurrency } from '../../api/SettlementAccountService'
 
-const rowsPerPage = 10
+const rowsPerPageOptions = [5, 10, 20]
 
-const settlementTableDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false,
-})
+const getNormalizedTransactionType = (transactionType = '') =>
+  transactionType.toString().trim().toUpperCase().replace(/[\s-]+/g, '_')
 
-const formatDetailedDateTime = (value, fallback) => {
-  if (!value) {
-    return fallback || '-'
+const isDebitedTransaction = (transactionType = '') =>
+  getNormalizedTransactionType(transactionType).includes('DEBIT')
+
+const isCreditedTransaction = (transactionType = '') =>
+  getNormalizedTransactionType(transactionType).includes('CREDIT')
+
+const getDisplayStatus = (transaction) =>
+  transaction.status || transaction.transactionType || '-'
+
+const getDisplayAccountNumber = (transaction) => {
+  const displayStatus = getDisplayStatus(transaction)
+
+  if (isDebitedTransaction(displayStatus)) {
+    return transaction.beneficiaryAccountNumber || '-'
   }
 
-  const normalizedValue = typeof value === 'string'
-    ? value.replace(/(\.\d{3})\d+/, '$1')
-    : value
-  const date = new Date(normalizedValue)
-
-  return Number.isNaN(date.getTime()) ? (fallback || '-') : settlementTableDateTimeFormatter.format(date)
-}
-
-const formatSignedAmount = (transaction) => {
-  const amount = Number(transaction.amount)
-  const formattedAmount = formatSettlementCurrency(Number.isNaN(amount) ? 0 : Math.abs(amount))
-
-  if (['Debited', 'Returned', 'Reverted'].includes(transaction.settlementStatus)) {
-    return `-${formattedAmount}`
+  if (isCreditedTransaction(displayStatus)) {
+    return transaction.senderAccountNumber || '-'
   }
 
-  if (transaction.settlementStatus === 'Credited') {
-    return `+${formattedAmount}`
-  }
-
-  return formattedAmount
-}
-
-const hasDisplayValue = (display) =>
-  display !== undefined && display !== null && display !== ''
-
-const isSettlementAccountType = (value) =>
-  String(value ?? '').trim().toUpperCase() === 'SETTLEMENT'
-
-const getDisplayText = (display) => {
-  if (Array.isArray(display)) {
-    return display
-      .filter((value) => value !== undefined && value !== null && value !== '')
-      .filter((value) => !isSettlementAccountType(value))
-      .join('\n')
-  }
-
-  if (typeof display === 'object') {
-    return [
-      display.accountNumber,
-      display.name ?? display.accountName,
-      display.accountType ?? display.details,
-    ].filter((value) => value !== undefined && value !== null && value !== '')
-      .filter((value) => !isSettlementAccountType(value))
-      .join('\n')
-  }
-
-  return String(display)
-    .split(/\r?\n/)
-    .filter((line) => !isSettlementAccountType(line))
-    .join('\n')
-}
-
-function PartyDetails({ display, accountNumber, name, accountType, hideMissingAccountType = false }) {
-  if (hasDisplayValue(display)) {
-    return (
-      <div className="settlement-party-details settlement-party-display">
-        {getDisplayText(display)}
-      </div>
-    )
-  }
-
-  return (
-    <div className="settlement-party-details">
-      <strong>{accountNumber || '-'}</strong>
-      <span>{name || '-'}</span>
-      {!isSettlementAccountType(accountType) &&
-        (!hideMissingAccountType || accountType) && <small>{accountType || '-'}</small>}
-    </div>
-  )
+  return transaction.senderAccountNumber || transaction.beneficiaryAccountNumber || '-'
 }
 
 function SettlementTransactionTable({
@@ -189,7 +127,7 @@ function SettlementTransactionTable({
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan="7">
+                <td colSpan="4">
                   <div className="settlement-loading-state" role="status">
                     <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
                     <span>Loading settlement transactions...</span>

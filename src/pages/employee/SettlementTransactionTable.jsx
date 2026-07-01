@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { formatSettlementCurrency } from '../../api/SettlementAccountService'
 
-const rowsPerPageOptions = [5, 10, 20]
+const rowsPerPage = 10
 
 const settlementTableDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
@@ -30,11 +30,11 @@ const formatSignedAmount = (transaction) => {
   const amount = Number(transaction.amount)
   const formattedAmount = formatSettlementCurrency(Number.isNaN(amount) ? 0 : Math.abs(amount))
 
-  if (transaction.settlementStatus === 'Debited') {
+  if (['Debited', 'Returned', 'Reverted'].includes(transaction.settlementStatus)) {
     return `-${formattedAmount}`
   }
 
-  if (transaction.settlementStatus === 'Credited' || transaction.settlementStatus === 'Returned') {
+  if (transaction.settlementStatus === 'Credited') {
     return `+${formattedAmount}`
   }
 
@@ -65,7 +65,6 @@ function SettlementTransactionTable({
 }) {
   const [paymentSearch, setPaymentSearch] = useState('')
   const [dateSort, setDateSort] = useState('newest')
-  const [rowsPerPage, setRowsPerPage] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
   const filteredTransactions = useMemo(() => {
@@ -86,7 +85,8 @@ function SettlementTransactionTable({
   }, [dateSort, paymentSearch, transactions])
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / rowsPerPage))
-  const pageStartIndex = (currentPage - 1) * rowsPerPage
+  const visiblePage = Math.min(currentPage, totalPages)
+  const pageStartIndex = (visiblePage - 1) * rowsPerPage
   const paginatedTransactions = filteredTransactions.slice(pageStartIndex, pageStartIndex + rowsPerPage)
   const displayedTransactions = showPagination ? paginatedTransactions : filteredTransactions
 
@@ -236,41 +236,22 @@ function SettlementTransactionTable({
             {filteredTransactions.length}
           </span>
 
-          <div className="settlement-page-size">
-            <span>Rows</span>
-            <select
-              className="filter-select"
-              value={rowsPerPage}
-              onChange={(event) => {
-                setRowsPerPage(Number(event.target.value))
-                resetToFirstPage()
-              }}
-              aria-label="Rows per page"
-            >
-              {rowsPerPageOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="pagination-actions">
             <button
               type="button"
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              disabled={currentPage === 1}
+              disabled={visiblePage === 1}
             >
               <i className="bi bi-chevron-left" aria-hidden="true"></i>
               Previous
             </button>
             <strong>
-              Page {currentPage} of {totalPages}
+              Page {visiblePage} of {totalPages}
             </strong>
             <button
               type="button"
               onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-              disabled={currentPage === totalPages}
+              disabled={visiblePage === totalPages}
             >
               Next
               <i className="bi bi-chevron-right" aria-hidden="true"></i>

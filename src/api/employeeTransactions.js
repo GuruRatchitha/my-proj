@@ -69,6 +69,18 @@ const getBooleanValue = (...values) => {
   return false
 }
 
+const getRevertPermission = (status, ...values) => {
+  const explicitValue = values.find(
+    (candidate) => candidate !== undefined && candidate !== null && candidate !== '',
+  )
+
+  if (explicitValue !== undefined) {
+    return getBooleanValue(explicitValue)
+  }
+
+  return ['REJECTED', 'FAILED', 'RJCT'].includes(String(status || '').trim().toUpperCase())
+}
+
 const normalizeDateInput = (value) => {
   if (typeof value !== 'string') {
     return value
@@ -266,7 +278,8 @@ export const normalizeEmployeeTransaction = (transaction, index = 0) => {
       paymentDetails.returnReason,
       xmlDetails.rejectionReason,
     ),
-    canRevert: getBooleanValue(
+    canRevert: getRevertPermission(
+      normalized.status,
       transaction.canRevert,
       transaction.revertAllowed,
       transaction.canReturn,

@@ -458,7 +458,8 @@
 }
 
 .employee-open-link,
-.employee-back-link {
+.employee-back-link,
+.employee-revert-link {
   border: 0;
   background: transparent;
   color: #174b8f;
@@ -468,6 +469,16 @@
 
 .employee-open-link {
   padding: 0;
+}
+
+.employee-revert-link {
+  padding: 0;
+  color: #b83232;
+}
+
+.employee-revert-link:disabled {
+  color: #9aabc0;
+  cursor: wait;
 }
 
 .customer-edit-action {
@@ -491,7 +502,8 @@
 }
 
 .employee-open-link:hover,
-.employee-back-link:hover {
+.employee-back-link:hover,
+.employee-revert-link:hover:not(:disabled) {
   color: #103f7b;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -1233,12 +1245,14 @@
   font-weight: 900 !important;
 }
 
-.settlement-amount.credited,
-.settlement-amount.returned {
+.settlement-amount.credited {
   color: #1f9d63;
 }
 
-.settlement-amount.debited {
+.settlement-amount.debited,
+.settlement-amount.returned,
+.settlement-amount.reverted,
+.settlement-amount.failed {
   color: #b83232;
 }
 
@@ -1266,6 +1280,12 @@
 .settlement-status.returned {
   background: #fff3d8;
   color: #9a6a1f;
+}
+
+.settlement-status.reverted,
+.settlement-status.failed {
+  background: #ffe8e8;
+  color: #b83232;
 }
 
 .settlement-loading-state,

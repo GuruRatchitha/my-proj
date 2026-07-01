@@ -2,13 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchSettlementAccountDetails,
   fetchSettlementTransactions,
-  formatSettlementCurrency,
 } from '../../api/SettlementAccountService'
 import { API_BASE_URL } from '../../api/httpClient'
 import SettlementSummaryCard from './SettlementSummaryCard'
 import SettlementTransactionTable from './SettlementTransactionTable'
 
 const settlementRefreshIntervalMs = 10000
+
+const mergeSettlementTransactions = (currentTransactions, incomingTransactions) => {
+  const transactionMap = new Map(
+    currentTransactions.map((transaction) => [String(transaction.id), transaction]),
+  )
+
+  incomingTransactions.forEach((transaction) => {
+    transactionMap.set(String(transaction.id), transaction)
+  })
+
+  return Array.from(transactionMap.values())
+}
 
 const getSettlementRequestError = (label, error) => {
   const message = error?.message || 'Request failed.'
@@ -54,7 +65,9 @@ function SettlementAccount() {
       ])
 
       if (transactionResult.status === 'fulfilled') {
-        setTransactions(transactionResult.value)
+        setTransactions((currentTransactions) =>
+          mergeSettlementTransactions(currentTransactions, transactionResult.value),
+        )
       } else {
         setTransactionErrorMessage(
           getSettlementRequestError('Settlement transaction history', transactionResult.reason),
@@ -62,25 +75,7 @@ function SettlementAccount() {
       }
 
       if (accountResult.status === 'fulfilled') {
-        const nextAccount = accountResult.value
-        const nextTransactions = transactionResult.status === 'fulfilled'
-          ? transactionResult.value
-          : []
-        const calculatedRevertedAmount = nextTransactions
-          .filter((transaction) => transaction.settlementStatus === 'Returned')
-          .reduce((total, transaction) => {
-            const amount = Number(transaction.amount)
-            return total + (Number.isNaN(amount) ? 0 : Math.abs(amount))
-          }, 0)
-        const revertedAmountBalance = nextAccount.hasRevertedAmountBalance
-          ? nextAccount.revertedAmountBalance
-          : calculatedRevertedAmount
-
-        setAccount({
-          ...nextAccount,
-          revertedAmountBalance,
-          formattedRevertedAmountBalance: formatSettlementCurrency(revertedAmountBalance),
-        })
+        setAccount(accountResult.value)
       } else {
         setAccountErrorMessage(
           getSettlementRequestError('Settlement account details', accountResult.reason),

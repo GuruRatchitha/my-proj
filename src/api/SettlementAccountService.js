@@ -62,6 +62,10 @@ const getNormalizedSettlementStatus = (value = '') =>
 
 const getSettlementStatus = (transaction) => {
   const statusValues = [
+    transaction.settlementStatus,
+    transaction.ledgerStatus,
+    transaction.movementStatus,
+    transaction.movementType,
     transaction.queueStatus,
     transaction.transactionQueueStatus,
     transaction.paymentStatus,
@@ -75,18 +79,17 @@ const getSettlementStatus = (transaction) => {
     transaction.transactionType,
   ].filter(Boolean)
 
-  const isReturned = statusValues.some((value) => {
-    const normalizedValue = getNormalizedSettlementStatus(value)
-    return normalizedValue === 'RJCT' || normalizedValue.includes('REJECT') ||
-      normalizedValue.includes('RETURN') || normalizedValue.includes('REVERT')
-  })
+  const normalizedStatuses = statusValues.map(getNormalizedSettlementStatus)
 
-  if (isReturned) {
+  if (normalizedStatuses.some((value) => value.includes('REVERT'))) {
+    return 'Reverted'
+  }
+
+  if (normalizedStatuses.some((value) => value.includes('RETURN'))) {
     return 'Returned'
   }
 
-  const normalizedStatus = statusValues
-    .map(getNormalizedSettlementStatus)
+  const normalizedStatus = normalizedStatuses
     .find((value) => value.includes('DEBIT') || value.includes('CREDIT')) || ''
 
   if (normalizedStatus.includes('DEBIT')) {
@@ -95,6 +98,11 @@ const getSettlementStatus = (transaction) => {
 
   if (normalizedStatus.includes('CREDIT')) {
     return 'Credited'
+  }
+
+  if (normalizedStatuses.some((value) =>
+    value === 'RJCT' || value.includes('REJECT') || value.includes('FAIL'))) {
+    return 'Failed'
   }
 
   return '-'
@@ -178,25 +186,31 @@ const normalizeSettlementTransactionCollection = (response) => {
 
 export const normalizeSettlementAccount = (account = {}) => {
   const currentBalance = getFirstValue(account.currentBalance, account.balance, account.availableBalance, 0)
-  const revertedAmountValues = [
+  const revertAmountValues = [
+    account.revertAmount,
+    account.revertAmountBalance,
     account.revertedAmountBalance,
     account.totalRevertedAmount,
     account.returnedAmountBalance,
     account.revertedBalance,
   ]
-  const hasRevertedAmountBalance = revertedAmountValues.some(
+  const hasRevertAmount = revertAmountValues.some(
     (value) => value !== undefined && value !== null && value !== '',
   )
-  const revertedAmountBalance = getFirstValue(...revertedAmountValues, 0)
+  const revertAmount = getFirstValue(...revertAmountValues, 0)
 
   return {
     accountNumber: getFirstValue(account.accountNumber, account.settlementAccountNumber, account.number),
     accountName: getFirstValue(account.accountName, account.name, account.accountHolderName, 'Settlement Account'),
     currentBalance,
     formattedCurrentBalance: formatSettlementCurrency(currentBalance),
-    revertedAmountBalance,
-    formattedRevertedAmountBalance: formatSettlementCurrency(revertedAmountBalance),
-    hasRevertedAmountBalance,
+    revertAmount,
+    formattedRevertAmount: formatSettlementCurrency(revertAmount),
+    hasRevertAmount,
+    // Temporary compatibility aliases for callers using the previous contract.
+    revertedAmountBalance: revertAmount,
+    formattedRevertedAmountBalance: formatSettlementCurrency(revertAmount),
+    hasRevertedAmountBalance: hasRevertAmount,
     accountType: toTitleCase(getFirstValue(account.accountType, account.type, 'Settlement')),
     lastUpdated: getFirstValue(account.lastUpdated, account.updatedAt, account.updatedDate, account.modifiedAt),
     formattedLastUpdated: formatSettlementDateTime(

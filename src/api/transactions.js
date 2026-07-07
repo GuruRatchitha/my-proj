@@ -1,5 +1,6 @@
 import httpClient from './httpClient'
 import { getStoredCurrentUser, getStoredUserId } from './currentUser'
+import { fetchBeneficiaries } from './beneficiaries'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -10,7 +11,12 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: '2-digit',
   year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
 })
+
+const CUSTOMER_TRANSACTIONS_ENDPOINT = '/api/transactions'
 
 const toTitleCase = (value = '') =>
   value
@@ -30,10 +36,34 @@ const formatTransactionDate = (transactionDate) => {
 }
 
 const getTransactionTone = (transaction) => {
+  const statusAndDirection = [
+    transaction.status,
+    transaction.transferStatus,
+    transaction.transactionStatus,
+    transaction.direction,
+    transaction.transactionDirection,
+    transaction.movementType,
+    transaction.debitCreditIndicator,
+    transaction.creditDebitIndicator,
+    transaction.transactionType,
+    transaction.entryType,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase()
+
+  if (statusAndDirection.includes('CREDIT')) {
+    return 'credit'
+  }
+
+  if (statusAndDirection.includes('DEBIT')) {
+    return 'debit'
+  }
+
   const purpose = transaction.purpose?.toLowerCase() || ''
   const beneficiaryName = transaction.beneficiaryName?.toLowerCase() || ''
 
-  if (purpose.includes('salary') || beneficiaryName.includes('stripe')) {
+  if (purpose.includes('INVESTMENT') || beneficiaryName.includes('stripe')) {
     return 'credit'
   }
 
@@ -90,6 +120,43 @@ const normalizeTransactionCollection = (response) => {
   return []
 }
 
+const normalizeCustomerAccounts = (customer) => {
+  if (Array.isArray(customer?.accounts)) {
+    return customer.accounts
+  }
+
+  if (Array.isArray(customer?.customer?.accounts)) {
+    return customer.customer.accounts
+  }
+
+  if (Array.isArray(customer?.data?.accounts)) {
+    return customer.data.accounts
+  }
+
+  return []
+}
+
+const getTransactionReference = (transaction) => getFirstValue(
+  transaction.transactionReference,
+  transaction.reference,
+  transaction.paymentTransactionId,
+  transaction.transactionId,
+  transaction.id,
+).toString()
+
+const getTransactionDate = (transaction) => getFirstValue(
+  transaction.transactionDate,
+  transaction.paymentDate,
+  transaction.createdAt,
+  transaction.postedAt,
+  transaction.timestamp,
+)
+
+const getTransactionSortTime = (transaction) => {
+  const parsedTime = new Date(getTransactionDate(transaction)).getTime()
+  return Number.isNaN(parsedTime) ? 0 : parsedTime
+}
+
 const normalizeDashboardAccount = (account) => {
   const accountNumber = getFirstValue(account.accountNumber, account.id, account.accountNo, account.number)
   const accountType = getFirstValue(account.accountType, account.type, account.productType, 'Account')
@@ -109,54 +176,144 @@ const normalizeDashboardAccount = (account) => {
   }
 }
 
-const isCompletedTransaction = (transaction) => {
-  const status = getFirstValue(transaction.transferStatus, transaction.transactionStatus, transaction.status)
-    .toString()
-    .trim()
-    .toUpperCase()
+const getTransactionStatuses = (transaction) => [
+  transaction.status,
+  transaction.currentStatus,
+  transaction.transferStatus,
+  transaction.transactionStatus,
+  transaction.paymentStatus,
+  transaction.processingStatus,
+  transaction.approvalStatus,
+  transaction.paymentDetails?.status,
+  transaction.paymentDetails?.transactionStatus,
+  transaction.paymentDetails?.paymentStatus,
+  transaction.paymentDetails?.processingStatus,
+  transaction.paymentDetails?.approvalStatus,
+]
+  .filter(Boolean)
+  .map((status) => status.toString().trim().toUpperCase().replace(/[\s-]+/g, '_'))
 
-  return ['APPROVED', 'COMPLETED'].includes(status)
-}
+const hasStatus = (statuses, expectedStatuses) => statuses.some((status) =>
+  expectedStatuses.some((expectedStatus) =>
+    status === expectedStatus || status.endsWith(`_${expectedStatus}`),
+  ),
+)
+
+const clearedStatuses = [
+  'APPROVED',
+  'COMPLETED',
+  'COMPLETE',
+  'SETTLED',
+  'ACSC',
+  'DEBITED',
+  'CREDITED',
+  'REVERTED',
+  'RETURNED',
+]
+const awaitingReviewStatuses = ['PENDING', 'HOLD', 'ON_HOLD']
+const customerHistoryStatuses = [
+  'ACCEPTED',
+  'PAYMENT_ACCEPTED',
+  'PROCESSING',
+  'COMPLETED',
+  'COMPLETE',
+  'SETTLED',
+  'ACSC',
+  'DEBITED',
+  'CREDITED',
+  'REVERTED',
+  'RETURNED',
+]
+
+const isCompletedTransaction = (transaction) =>
+  hasStatus(getTransactionStatuses(transaction), clearedStatuses)
 
 const isPendingTransaction = (transaction) => {
-  const status = getFirstValue(transaction.transferStatus, transaction.transactionStatus, transaction.status)
-    .toString()
-    .trim()
-    .toUpperCase()
+  const statuses = getTransactionStatuses(transaction)
 
-  return Boolean(status) && !['APPROVED', 'COMPLETED', 'REJECTED', 'FAILED'].includes(status)
+  return !hasStatus(statuses, clearedStatuses) && hasStatus(statuses, awaitingReviewStatuses)
 }
 
-export const normalizeTransaction = (transaction) => {
-  const tone = getTransactionTone(transaction)
-  const rawAmount = Number(transaction.amount || 0)
-  const amount = currencyFormatter.format(rawAmount)
-  const transactionReference = getFirstValue(
-    transaction.transactionReference,
-    transaction.reference,
-    transaction.paymentTransactionId,
-    transaction.transactionId,
-    transaction.id,
+// APPROVED can be assigned when the customer confirms a payment, so it is not
+// sufficient evidence of employee acceptance. Keep those requests in the
+// employee queue until ACCEPTED (or a later processing status) is returned.
+const isCustomerHistoryTransaction = (transaction) =>
+  hasStatus(getTransactionStatuses(transaction), customerHistoryStatuses)
+
+const findMatchingBeneficiary = (transaction, beneficiaries) => {
+  const beneficiaryId = getFirstValue(
+    transaction.beneficiaryId,
+    transaction.receiverId,
+    transaction.creditorId,
   )
-  const transactionDate = getFirstValue(transaction.transactionDate, transaction.paymentDate, transaction.createdAt)
+  const beneficiaryName = getFirstValue(
+    transaction.beneficiaryName,
+    transaction.receiverName,
+    transaction.creditorName,
+  ).toString().trim().toLowerCase()
+
+  return beneficiaries.find((beneficiary) => {
+    const matchesId = beneficiaryId && String(
+      getFirstValue(beneficiary.id, beneficiary.beneficiaryId),
+    ) === String(beneficiaryId)
+    const matchesName = beneficiaryName && getFirstValue(
+      beneficiary.beneficiaryName,
+      beneficiary.name,
+    ).toString().trim().toLowerCase() === beneficiaryName
+
+    return matchesId || matchesName
+  }) || {}
+}
+
+export const normalizeTransaction = (transaction, beneficiaries = [], index = 0) => {
+  const paymentDetails = transaction.paymentDetails || transaction.payment || {}
+  const tone = getTransactionTone(transaction)
+  const rawAmount = Math.abs(Number(transaction.amount || 0))
+  const amount = currencyFormatter.format(rawAmount)
+  const transactionReference = getTransactionReference(transaction)
+  const transactionDate = getTransactionDate(transaction)
   const receiverName = getFirstValue(
     transaction.beneficiaryName,
     transaction.receiverName,
     transaction.creditorName,
     transaction.toAccountName,
   )
+  const receiverDetails = transaction.receiverDetails || transaction.receiver ||
+    transaction.beneficiaryDetails || transaction.beneficiary || {}
+  const matchingBeneficiary = findMatchingBeneficiary(transaction, beneficiaries)
   const accountNumber = getFirstValue(
-    transaction.accountNumber,
-    transaction.sourceAccountNumber,
-    transaction.senderAccountNumber,
-    transaction.fromAccountNumber,
+    transaction.beneficiaryAccountNumber,
+    transaction.receiverAccountNumber,
+    transaction.creditorAccountNumber,
+    transaction.toAccountNumber,
+    receiverDetails.accountNumber,
+    receiverDetails.receiverAccountNumber,
+    matchingBeneficiary.accountNumber,
+    matchingBeneficiary.beneficiaryAccountNumber,
   )
   const accountType = getFirstValue(transaction.accountType, transaction.sourceAccountType, transaction.type, 'Transfer')
-  const status = getFirstValue(transaction.transferStatus, transaction.transactionStatus, transaction.status)
+  const ledgerEntryId = getFirstValue(
+    transaction.ledgerEntryId,
+    transaction.entryId,
+    transaction.historyId,
+    transaction.settlementTransactionId,
+  )
   const remarks = getFirstValue(transaction.purpose, transaction.remarks, transaction.description)
+  const rejectionReason = getFirstValue(
+    transaction.rejectionReason,
+    transaction.rejectedReason,
+    transaction.rejectReason,
+    transaction.rejectionMessage,
+    transaction.statusReason,
+    paymentDetails.rejectionReason,
+    paymentDetails.rejectedReason,
+    paymentDetails.rejectReason,
+    paymentDetails.reason,
+  )
 
   return {
     id: transactionReference,
+    rowKey: ledgerEntryId || `${transactionReference}-${tone}-${transactionDate || 'undated'}-${index}`,
     date: formatTransactionDate(transactionDate),
     receiverName,
     accountNumber,
@@ -167,7 +324,8 @@ export const normalizeTransaction = (transaction) => {
     currency: transaction.currency || 'USD',
     amount: tone === 'credit' ? `+${amount}` : `-${amount}`,
     type: toTitleCase(accountType),
-    status: toTitleCase(status),
+    status: tone === 'credit' ? 'Credited' : 'Debited',
+    rejectionReason,
     remarks,
     tone,
     icon: getDashboardIcon(transaction),
@@ -178,11 +336,11 @@ export const normalizeTransaction = (transaction) => {
 export const fetchDashboardSummary = async () => {
   const userId = await getCurrentUserId()
   const customer = await httpClient.get(`/api/customers/${encodeURIComponent(userId)}`)
-  const accounts = Array.isArray(customer?.accounts) ? customer.accounts : []
+  const accounts = normalizeCustomerAccounts(customer)
   let transactions = []
 
   try {
-    const response = await httpClient.get('/api/transactions')
+    const response = await httpClient.get(CUSTOMER_TRANSACTIONS_ENDPOINT)
     transactions = normalizeTransactionCollection(response)
   } catch (error) {
     console.error('Unable to load customer transactions.', error)
@@ -203,10 +361,24 @@ export const fetchDashboardSummary = async () => {
 export const fetchTransactions = async (limit) => {
   await getCurrentUserId()
 
-  const endpoint = '/api/transactions'
-  const response = await httpClient.get(endpoint)
-  const transactions = normalizeTransactionCollection(response)
+  const [transactionResult, beneficiaryResult] = await Promise.allSettled([
+    httpClient.get(CUSTOMER_TRANSACTIONS_ENDPOINT),
+    fetchBeneficiaries(),
+  ])
+
+  if (transactionResult.status === 'rejected') {
+    throw transactionResult.reason
+  }
+
+  const response = transactionResult.value
+  const beneficiaries = beneficiaryResult.status === 'fulfilled' &&
+    Array.isArray(beneficiaryResult.value)
+    ? beneficiaryResult.value
+    : []
+  const transactions = [...normalizeTransactionCollection(response)]
+    .filter(isCustomerHistoryTransaction)
+    .sort((first, second) => getTransactionSortTime(second) - getTransactionSortTime(first))
   const limitedTransactions = limit || limit === 0 ? transactions.slice(0, limit) : transactions
 
-  return limitedTransactions.map(normalizeTransaction)
+  return limitedTransactions.map((transaction, index) => normalizeTransaction(transaction, beneficiaries, index))
 }

@@ -48,8 +48,8 @@ const getAccountType = (account) =>
 
 const getAccountBalance = (account) => {
   const balance = getFirstValue(
-    account?.balance,
     account?.availableBalance,
+    account?.balance,
     account?.currentBalance,
     account?.accountBalance,
     0,
@@ -201,6 +201,7 @@ function Payment() {
   const [selectedAccountId, setSelectedAccountId] = useState(getAccountNumber(stateDraft?.sourceAccount) || '')
   const [isAmountTouched, setIsAmountTouched] = useState(false)
   const [isSourceTouched, setIsSourceTouched] = useState(false)
+  const [hasAttemptedDetailsSubmit, setHasAttemptedDetailsSubmit] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [accounts, setAccounts] = useState(stateDraft?.accounts || [])
@@ -260,10 +261,13 @@ function Payment() {
     [accounts, selectedAccountId, stateDraft],
   )
 
-  const isAmountValid = amount.trim() !== ''
+  const numericAmount = Number(amount)
+  const isAmountValid = amount.trim() !== '' && Number.isFinite(numericAmount) && numericAmount > 0
   const hasSourceAccount = Boolean(selectedAccount)
   const selectedAccountBalance = hasSourceAccount ? getAccountBalance(selectedAccount) : 0
-  const shouldShowAmountError = isAmountTouched && !isAmountValid
+  const hasInsufficientBalance = isAmountValid && hasSourceAccount && numericAmount > selectedAccountBalance
+  const shouldShowAmountError = (isAmountTouched && !isAmountValid) ||
+    (hasAttemptedDetailsSubmit && hasInsufficientBalance)
   const shouldShowSourceError = isSourceTouched && !hasSourceAccount
   const canContinue = isAmountValid && hasSourceAccount
 
@@ -291,6 +295,7 @@ function Payment() {
       .replace(/(\..*)\./g, '$1')
 
     setAmount(sanitizedAmount)
+    setHasAttemptedDetailsSubmit(false)
     setErrorMessage('')
   }
 
@@ -298,9 +303,10 @@ function Payment() {
     event.preventDefault()
     setIsAmountTouched(true)
     setIsSourceTouched(true)
+    setHasAttemptedDetailsSubmit(true)
     setErrorMessage('')
 
-    if (!canContinue) {
+    if (!canContinue || hasInsufficientBalance) {
       return
     }
 
@@ -643,7 +649,7 @@ function Payment() {
                     aria-describedby="amountFeedback"
                   />
                   <div id="amountFeedback" className="invalid-feedback">
-                    Amount is required.
+                    {hasInsufficientBalance ? 'Insufficient balance.' : 'Enter a valid amount.'}
                   </div>
                 </div>
               </label>
@@ -665,6 +671,7 @@ function Payment() {
                 onChange={(event) => {
                   setSelectedAccountId(event.target.value)
                   setIsSourceTouched(true)
+                  setHasAttemptedDetailsSubmit(false)
                   setErrorMessage('')
                 }}
                 required

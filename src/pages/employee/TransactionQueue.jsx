@@ -158,8 +158,9 @@ function TransactionQueue() {
 
   const handleRevertTransaction = async (transaction) => {
     const transactionId = transaction.id || transaction.reference
+    const isRejectedTransaction = String(transaction.status || '').trim().toUpperCase() === 'REJECTED'
 
-    if (!transactionId || activeRevertId || !transaction.canRevert) {
+    if (!transactionId || activeRevertId || !transaction.canRevert || isRejectedTransaction) {
       return
     }
 
@@ -274,7 +275,8 @@ function TransactionQueue() {
                       >
                         Open &rarr;
                       </button>
-                      {transaction.canRevert && (
+                      {transaction.canRevert &&
+                        String(transaction.status || '').trim().toUpperCase() !== 'REJECTED' && (
                         <button
                           className="employee-revert-link"
                           type="button"

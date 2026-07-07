@@ -44,9 +44,15 @@ const isSameDay = (value, date = new Date()) => {
 }
 
 const isPendingStatus = (status) => {
-  const normalizedStatus = (status || '').toString().trim().toUpperCase()
+  const normalizedStatus = (status || '')
+    .toString()
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
 
-  return Boolean(normalizedStatus) && !['APPROVED', 'COMPLETED', 'REJECTED', 'FAILED'].includes(normalizedStatus)
+  return ['PENDING', 'HOLD', 'ON_HOLD'].some((pendingStatus) =>
+    normalizedStatus === pendingStatus || normalizedStatus.endsWith(`_${pendingStatus}`),
+  )
 }
 
 const getCustomerAccounts = (customer) =>
@@ -123,7 +129,14 @@ export const fetchEmployeeDashboard = async () => {
   const pendingBeneficiaries = results[1].status === 'fulfilled' ? results[1].value : []
   const transactions = results[2].status === 'fulfilled' ? results[2].value : []
   const pendingTransactions = transactions.filter((transaction) =>
-    isPendingStatus(getFirstValue(transaction.status, transaction.transferStatus, transaction.approvalStatus)),
+    isPendingStatus(getFirstValue(
+      transaction.status,
+      transaction.currentStatus,
+      transaction.transactionStatus,
+      transaction.approvalStatus,
+      transaction.transferStatus,
+      transaction.paymentStatus,
+    )),
   )
   const accounts = customers.flatMap(getCustomerAccounts)
   const summary = {

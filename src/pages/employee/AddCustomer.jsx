@@ -29,7 +29,7 @@ const initialAccount = {
 const accountTypeOptions = [
   { value: 'SAVINGS', label: 'Savings' },
   { value: 'CURRENT', label: 'Current' },
-  { value: 'SALARY', label: 'Salary' },
+  { value: 'INVESTMENT', label: 'Investment' },
 ]
 
 const accountStatusOptions = [
@@ -351,11 +351,11 @@ function AddCustomer() {
 
       if (isEditMode) {
         await updateCustomer(userId, customerPayload)
-        setSuccessMessage('Customer updated successfully.')
       } else {
         await createCustomer(customerPayload)
-        setSuccessMessage('Customer created successfully.')
       }
+
+      navigate('/employee/customers', { replace: true })
     } catch (error) {
       setSubmitError(error.message || `Unable to ${isEditMode ? 'update' : 'create'} customer.`)
       setSuccessMessage('')
@@ -398,6 +398,7 @@ function AddCustomer() {
                 <input
                   name="fullName"
                   type="text"
+                  placeholder="Enter full name"
                   value={customerForm.fullName}
                   onChange={handleFieldChange}
                   autoComplete="name"
@@ -410,6 +411,7 @@ function AddCustomer() {
                 <input
                   name="email"
                   type="email"
+                  placeholder="Enter email ID"
                   value={customerForm.email}
                   onChange={handleFieldChange}
                   autoComplete="email"
@@ -422,6 +424,7 @@ function AddCustomer() {
                 <input
                   name="password"
                   type="password"
+                  placeholder="Enter password"
                   value={customerForm.password}
                   onChange={handleFieldChange}
                   autoComplete="new-password"
@@ -434,6 +437,7 @@ function AddCustomer() {
                 <input
                   name="phoneNumber"
                   type="tel"
+                  placeholder="e.g. 9876543210"
                   value={customerForm.phoneNumber}
                   onChange={handleFieldChange}
                   autoComplete="tel"
@@ -446,6 +450,7 @@ function AddCustomer() {
                 <input
                   name="aadharNumber"
                   type="text"
+                  placeholder="Enter 12-digit Aadhar number"
                   value={customerForm.aadharNumber}
                   onChange={handleFieldChange}
                   inputMode="numeric"
@@ -458,6 +463,7 @@ function AddCustomer() {
                 <input
                   name="panCardNumber"
                   type="text"
+                  placeholder="e.g. ABCDE1234F"
                   value={customerForm.panCardNumber}
                   onChange={handleFieldChange}
                   required

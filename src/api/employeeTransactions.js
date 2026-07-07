@@ -163,8 +163,12 @@ const normalizeStatus = (status) => {
     return ''
   }
 
-  if (['COMPLETED', 'COMPLETE', 'ACSC', 'ACCEPTED', 'SETTLED'].includes(normalizedStatus)) {
+  if (['COMPLETED', 'COMPLETE', 'ACSC', 'SETTLED'].includes(normalizedStatus)) {
     return 'Completed'
+  }
+
+  if (normalizedStatus === 'ACCEPTED') {
+    return 'Accepted'
   }
 
   if (normalizedStatus === 'FAILED') {
@@ -616,10 +620,46 @@ export const approveEmployeeTransaction = async (transactionReference) => {
   return parseMaybeJson(response)
 }
 
-export const rejectEmployeeTransaction = async (transactionReference) => {
+export const acceptEmployeeTransaction = async (transactionReference) => {
+  const response = await httpClient.post(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/accept`,
+    null,
+    {
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
+
+  return parseMaybeJson(response)
+}
+
+export const sendEmployeeTransactionToPayapt = async (transactionReference) => {
+  const response = await httpClient.post(
+    `/api/employee/transactions/${encodeURIComponent(transactionReference)}/send-to-payapt`,
+    null,
+    {
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+      },
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    },
+  )
+
+  return parseMaybeJson(response)
+}
+
+export const rejectEmployeeTransaction = async (transactionReference, reason) => {
   const response = await httpClient.post(
     `/api/employee/transactions/${encodeURIComponent(transactionReference)}/reject`,
-    null,
+    {
+      status: 'REJECTED',
+      reason,
+      rejectionReason: reason,
+    },
     {
       headers: {
         Accept: 'application/json, text/plain, */*',

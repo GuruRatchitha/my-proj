@@ -65,7 +65,7 @@ function Dashboard() {
   const paginatedTransactions = transactionRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
 
   const availableAccounts = accounts
-    .filter((account) => !['salary', 'fixed deposit'].includes(account.type.toLowerCase()))
+    .filter((account) => !['INVESTMENT', 'fixed deposit'].includes(account.type.toLowerCase()))
     .slice(0, 3)
   const accountSummaryDetail = availableAccounts.map((account) => account.type).join(' - ')
   const dashboardSummaryCards = summaryCards.map((card) =>
@@ -198,7 +198,7 @@ function Dashboard() {
             <thead>
               <tr>
                 <th>Transaction ID</th>
-                <th>Date</th>
+                <th>Date &amp; Time</th>
                 <th>Receiver Name</th>
                 <th>Account Number</th>
                 <th>Amount</th>
@@ -217,9 +217,9 @@ function Dashboard() {
                 </tr>
               )}
               {!isDashboardLoading && paginatedTransactions.map((transaction) => (
-                <tr key={transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
+                <tr key={transaction.rowKey || transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
                   <td>{transaction.id || '-'}</td>
-                  <td>{transaction.date}</td>
+                  <td className="transaction-date-time">{transaction.date}</td>
                   <td>{transaction.receiverName || '-'}</td>
                   <td>{transaction.accountNumber || '-'}</td>
                   <td className={transaction.tone === 'credit' ? 'credit-text' : 'debit-text'}>
@@ -227,7 +227,7 @@ function Dashboard() {
                   </td>
                   <td>{transaction.type || '-'}</td>
                   <td>
-                    <span className={`transaction-status ${(transaction.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                    <span className={`transaction-status ${transaction.tone === 'credit' ? 'credited' : 'debited'}`}>
                       {transaction.status || '-'}
                     </span>
                   </td>

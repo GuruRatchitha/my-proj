@@ -784,6 +784,16 @@
   color: #b83232;
 }
 
+.transaction-status.credited {
+  background: #e6f7ee;
+  color: #1f9d63;
+}
+
+.transaction-status.debited {
+  background: #ffe8e8;
+  color: #c62828;
+}
+
 .transaction-amount {
   justify-self: end;
   color: #07111f;
@@ -1435,6 +1445,7 @@
 
 .transaction-table-wrap {
   max-width: 100%;
+  overflow-x: auto;
   padding: 0;
 }
 
@@ -1467,6 +1478,15 @@
 
 .bank-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.transactions-history-table {
+  min-width: 1100px;
+}
+
+.transactions-history-table .transaction-date-column {
+  width: 17%;
+  padding-right: 28px;
 }
 
 .pagination-bar {
@@ -1527,8 +1547,12 @@
 }
 
 .debit-text {
-  color: #111827 !important;
+  color: #c62828 !important;
   font-weight: 900 !important;
+}
+
+.transaction-date-time {
+  white-space: nowrap;
 }
 
 @media (max-width: 1050px) {

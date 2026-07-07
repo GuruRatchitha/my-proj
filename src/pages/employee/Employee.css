@@ -174,6 +174,11 @@
   gap: 14px;
 }
 
+.employee-form-grid > .bank-field {
+  align-content: start;
+  grid-template-rows: auto auto minmax(15px, auto);
+}
+
 .employee-form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1017,6 +1022,13 @@
   background: #ffffff;
   color: #174b8f;
   box-shadow: 0 6px 14px rgba(23, 99, 199, 0.08);
+}
+
+.employee-tab-list button:disabled {
+  color: #a2adbb;
+  background: #eef2f6;
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .employee-review-tabs .employee-parties-grid {

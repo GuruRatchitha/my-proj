@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  approveEmployeeTransaction,
+  acceptEmployeeTransaction,
   fetchEmployeeTransactionAdmi002,
   fetchEmployeeTransaction,
   fetchEmployeeTransactionPacs002,
@@ -9,6 +9,7 @@ import {
   fetchEmployeeTransactionXml,
   rejectEmployeeTransaction,
   revertEmployeeTransaction,
+  sendEmployeeTransactionToPayapt,
 } from '../../api/employeeTransactions'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
@@ -403,7 +404,7 @@ const isPipelineAwaitingApproval = (transactionStatus = '') =>
   )
 
 const getDisplayedPipelineSteps = (steps, transactionStatus, hasAdmi002, lifecycle = {}) => {
-  if (isPipelineAwaitingApproval(transactionStatus)) {
+  if (isPipelineAwaitingApproval(transactionStatus) || lifecycle.isAwaitingSend) {
     return steps.map((step) => ({
       ...step,
       status: 'Not Started',
@@ -657,6 +658,8 @@ function TransactionDetails() {
   const [errorMessage, setErrorMessage] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [activeAction, setActiveAction] = useState('')
+  const [acceptedTransactionId, setAcceptedTransactionId] = useState('')
+  const [sentToPayaptTransactionId, setSentToPayaptTransactionId] = useState('')
   const [pacs008Content, setPacs008Content] = useState('')
   const [pacs008Status, setPacs008Status] = useState('idle')
   const [pacs002Content, setPacs002Content] = useState('')
@@ -671,6 +674,8 @@ function TransactionDetails() {
   const [isPipelineLoading, setIsPipelineLoading] = useState(false)
   const [pipelineErrorMessage, setPipelineErrorMessage] = useState('')
   const [copiedField, setCopiedField] = useState('')
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
 
   const transactionId = decodeURIComponent(transactionReference)
   const processingPipelineTransactionId = transaction?.id || transactionId
@@ -819,6 +824,8 @@ function TransactionDetails() {
         setAdmi002ErrorMessage('')
         setProcessingPipeline(null)
         setPipelineErrorMessage('')
+        setAcceptedTransactionId('')
+        setSentToPayaptTransactionId('')
 
         const nextTransaction = await fetchEmployeeTransaction(transactionId)
 
@@ -910,8 +917,15 @@ function TransactionDetails() {
   const isPacs008Available = pacs008Status === 'ready' || hasXmlContent(pacs008DisplayContent)
   const isPacs002Available = pacs002Status === 'ready' || hasXmlContent(pacs002DisplayContent)
   const isAdmi002Available = admi002Status === 'ready' || hasXmlContent(admi002DisplayContent)
+  const isPacs002Disabled = isAdmi002Available
+  const isAdmi002Disabled = isPacs002Available
   const hasAvailableXml = isPacs008Available || isPacs002Available || isAdmi002Available
-  const visibleActiveTab = ['xml', 'pacs002', 'admi002'].includes(activeTab) ? activeTab : 'xml'
+  const requestedActiveTab = ['xml', 'pacs002', 'admi002'].includes(activeTab) ? activeTab : 'xml'
+  const visibleActiveTab = requestedActiveTab === 'pacs002' && isPacs002Disabled
+    ? 'admi002'
+    : requestedActiveTab === 'admi002' && isAdmi002Disabled
+      ? 'pacs002'
+      : requestedActiveTab
 
   const handleCopyValue = async (value, field = 'uetr') => {
     if (!value) {
@@ -927,8 +941,27 @@ function TransactionDetails() {
     }
   }
 
-  const handleReviewAction = async (action) => {
-    if (!transaction || activeAction || isFinalStatus(transaction.status)) {
+  const handleReviewAction = async (action, reason = '') => {
+    if (!transaction || activeAction) {
+      return
+    }
+
+    const lifecycleStatus = normalizeLifecycleValue(transaction.status)
+    const currentTransactionId = String(transaction.id || transaction.reference)
+
+    if (action === 'accept' && lifecycleStatus !== 'PENDING') {
+      return
+    }
+
+    if (
+      action === 'send' &&
+      !['ACCEPTED', 'PAYMENT_ACCEPTED'].includes(lifecycleStatus) &&
+      acceptedTransactionId !== currentTransactionId
+    ) {
+      return
+    }
+
+    if (action === 'reject' && isFinalStatus(transaction.status)) {
       return
     }
 
@@ -937,23 +970,75 @@ function TransactionDetails() {
       setActionMessage('')
       setErrorMessage('')
 
-      if (action === 'approve') {
-        await approveEmployeeTransaction(transaction.id || transaction.reference)
-        setActionMessage('Transaction approved successfully.')
+      if (action === 'accept') {
+        await acceptEmployeeTransaction(transaction.id || transaction.reference)
+        setAcceptedTransactionId(currentTransactionId)
+        setTransaction((currentTransaction) => currentTransaction
+          ? { ...currentTransaction, status: 'Accepted' }
+          : currentTransaction)
+        setActionMessage('Transaction accepted successfully.')
+        await loadTransaction(false)
+      } else if (action === 'send') {
+        await sendEmployeeTransactionToPayapt(transaction.id || transaction.reference)
+        setSentToPayaptTransactionId(currentTransactionId)
+        setActionMessage('Transaction sent to PayApt successfully.')
+        await Promise.allSettled([
+          loadTransaction(false),
+          loadProcessingPipeline(false),
+          loadAvailableXmls(false),
+        ])
       } else {
-        await rejectEmployeeTransaction(transaction.id || transaction.reference)
+        const trimmedReason = reason.trim()
+        await rejectEmployeeTransaction(transaction.id || transaction.reference, trimmedReason)
+        setTransaction((currentTransaction) => currentTransaction
+          ? {
+              ...currentTransaction,
+              status: 'Rejected',
+              rejectionReason: trimmedReason,
+            }
+          : currentTransaction)
         setActionMessage('Transaction rejected successfully.')
+        await Promise.allSettled([
+          loadTransaction(false),
+          loadProcessingPipeline(false),
+          loadAvailableXmls(false),
+        ])
       }
-
-      await Promise.allSettled([
-        loadTransaction(false),
-        loadProcessingPipeline(false),
-        loadAvailableXmls(false),
-      ])
+      return true
     } catch (error) {
       setErrorMessage(error.message || 'Unable to update transaction.')
+      return false
     } finally {
       setActiveAction('')
+    }
+  }
+
+  const openRejectDialog = () => {
+    setRejectionReason('')
+    setErrorMessage('')
+    setIsRejectDialogOpen(true)
+  }
+
+  const closeRejectDialog = () => {
+    if (activeAction === 'reject') {
+      return
+    }
+
+    setIsRejectDialogOpen(false)
+    setRejectionReason('')
+  }
+
+  const handleRejectSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!rejectionReason.trim()) {
+      return
+    }
+
+    const wasRejected = await handleReviewAction('reject', rejectionReason)
+    if (wasRejected) {
+      setIsRejectDialogOpen(false)
+      setRejectionReason('')
     }
   }
 
@@ -1044,14 +1129,33 @@ function TransactionDetails() {
   const admi002PendingMessage = 'ADMI.002 will be available if validation fails.'
   const isReturnStatus = payaptStatus === 'RJCT'
   const isReverted = normalizeLifecycleValue(transactionStatus) === 'REVERTED'
-  const areReviewActionsDisabled = isActionInProgress || isFinalStatus(transactionStatus)
+  const lifecycleStatus = normalizeLifecycleValue(transaction.status)
+  const currentTransactionId = String(transaction.id || transaction.reference)
+  const wasAcceptedLocally = acceptedTransactionId === currentTransactionId
+  const wasSentToPayaptLocally = sentToPayaptTransactionId === currentTransactionId
+  const normalizedPipelineSteps = normalizePipelineSteps(processingPipeline)
+  const hasPacs008BeenSent = wasSentToPayaptLocally ||
+    normalizedPipelineSteps.some((step) => {
+      const visualState = getPipelineVisualState(step)
+      return step.key === 'pacs008Sent' && ['running', 'completed'].includes(visualState)
+    }) ||
+    ['PROCESSING', 'COMPLETED', 'FAILED'].includes(lifecycleStatus)
+  const isPendingTransaction = lifecycleStatus === 'PENDING'
+  const isAcceptedTransaction = ['ACCEPTED', 'PAYMENT_ACCEPTED'].includes(lifecycleStatus)
+  const showSendToPayapt = wasAcceptedLocally ||
+    (!isPendingTransaction && (isAcceptedTransaction || hasPacs008BeenSent))
+  const isRejectDisabled = isActionInProgress || !isPendingTransaction || showSendToPayapt
+  const isAcceptDisabled = isActionInProgress || !isPendingTransaction
+  const isSendDisabled = isActionInProgress || hasPacs008BeenSent ||
+    (!wasAcceptedLocally && !isAcceptedTransaction)
   const isRevertDisabled = isActionInProgress || !transaction.canRevert || isReverted
   const displayedPipelineSteps = getDisplayedPipelineSteps(
-    normalizePipelineSteps(processingPipeline),
+    normalizedPipelineSteps,
     transactionStatus,
     isAdmi002Available,
     {
       isReverted,
+      isAwaitingSend: showSendToPayapt && !hasPacs008BeenSent,
       payaptStatus,
       rejectionReason: lifecycleRejectionReason,
       pacs008Reason,
@@ -1115,8 +1219,8 @@ function TransactionDetails() {
               <button
                 className="profile-action-button secondary-action employee-reject-action"
                 type="button"
-                disabled={areReviewActionsDisabled}
-                onClick={() => handleReviewAction('reject')}
+                disabled={isRejectDisabled}
+                onClick={openRejectDialog}
               >
                 {activeAction === 'reject' ? (
                   <LoadingSpinner label="Rejecting" size="sm" variant="button" />
@@ -1125,12 +1229,14 @@ function TransactionDetails() {
               <button
                 className="profile-action-button primary-action"
                 type="button"
-                disabled={areReviewActionsDisabled}
-                onClick={() => handleReviewAction('approve')}
+                disabled={showSendToPayapt ? isSendDisabled : isAcceptDisabled}
+                onClick={() => handleReviewAction(showSendToPayapt ? 'send' : 'accept')}
               >
-                {activeAction === 'approve' ? (
-                  <LoadingSpinner label="Approving" size="sm" variant="button" />
-                ) : 'Approve'}
+                {activeAction === 'accept' ? (
+                  <LoadingSpinner label="Accepting" size="sm" variant="button" />
+                ) : activeAction === 'send' ? (
+                  <LoadingSpinner label="Sending" size="sm" variant="button" />
+                ) : showSendToPayapt ? 'Send To PayApt' : 'Accept'}
               </button>
             </>
           )}
@@ -1211,6 +1317,8 @@ function TransactionDetails() {
               type="button"
               role="tab"
               aria-selected={visibleActiveTab === 'pacs002'}
+              disabled={isPacs002Disabled}
+              title={isPacs002Disabled ? 'ADMI.002 was generated for this transaction.' : undefined}
               onClick={() => setActiveTab('pacs002')}
             >
               PACS.002
@@ -1220,6 +1328,8 @@ function TransactionDetails() {
               type="button"
               role="tab"
               aria-selected={visibleActiveTab === 'admi002'}
+              disabled={isAdmi002Disabled}
+              title={isAdmi002Disabled ? 'PACS.002 was generated for this transaction.' : undefined}
               onClick={() => setActiveTab('admi002')}
             >
               ADMI.002
@@ -1328,6 +1438,67 @@ function TransactionDetails() {
           )}
         </section>
       </section>
+
+      {isRejectDialogOpen && (
+        <div className="payment-modal-backdrop" role="presentation">
+          <section
+            className="payment-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-transaction-modal-title"
+          >
+            <header className="payment-modal-header">
+              <div>
+                <h2 id="reject-transaction-modal-title">Reject transaction</h2>
+                <p>Provide a reason the customer can review.</p>
+              </div>
+              <button
+                className="modal-close-button"
+                type="button"
+                aria-label="Close reject transaction dialog"
+                disabled={activeAction === 'reject'}
+                onClick={closeRejectDialog}
+              >
+                <i className="bi bi-x-lg" aria-hidden="true"></i>
+              </button>
+            </header>
+
+            <form className="employee-reject-form" onSubmit={handleRejectSubmit}>
+              <label className="bank-field">
+                <span>Reason</span>
+                <textarea
+                  className="form-control"
+                  value={rejectionReason}
+                  onChange={(event) => setRejectionReason(event.target.value)}
+                  maxLength={180}
+                  placeholder="Enter the reason for rejecting this transaction"
+                  autoFocus
+                  required
+                />
+              </label>
+              <div className="modal-actions">
+                <button
+                  className="profile-action-button secondary-action"
+                  type="button"
+                  disabled={activeAction === 'reject'}
+                  onClick={closeRejectDialog}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="profile-action-button primary-action"
+                  type="submit"
+                  disabled={!rejectionReason.trim() || activeAction === 'reject'}
+                >
+                  {activeAction === 'reject' ? (
+                    <LoadingSpinner label="Rejecting" size="sm" variant="button" />
+                  ) : 'Reject Transaction'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { fetchTransactions } from '../../api/transactions'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
 const rowsPerPage = 10
-const statusOptions = ['All', 'Completed', 'Pending', 'Failed']
+const statusOptions = ['All', 'Debited', 'Credited']
 const allAccountsFilter = 'All accounts'
 
 function Transactions() {
@@ -155,17 +155,17 @@ function Transactions() {
         </div>
 
         <div className="transaction-table-wrap">
-          <table className="table bank-table mb-0">
+          <table className="table bank-table transactions-history-table mb-0">
             <thead>
               <tr>
                 <th>Transaction ID</th>
-                <th>Date</th>
+                <th className="transaction-date-column">Date &amp; Time</th>
                 <th>Receiver Name</th>
                 <th>Account Number</th>
                 <th>Amount</th>
                 <th>Type</th>
-                <th>Status</th>
-                <th>Remarks</th>
+                <th>Transaction Type</th>
+                <th>Rejected Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -179,9 +179,9 @@ function Transactions() {
                 </tr>
               )}
               {!isLoading && paginatedTransactions.map((transaction) => (
-                <tr key={transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
+                <tr key={transaction.rowKey || transaction.id || `${transaction.accountNumber}-${transaction.date}`}>
                   <td>{transaction.id}</td>
-                  <td>{transaction.date}</td>
+                  <td className="transaction-date-time transaction-date-column">{transaction.date}</td>
                   <td>{transaction.receiverName}</td>
                   <td>{transaction.accountNumber}</td>
                   <td className={transaction.tone === 'credit' ? 'credit-text' : 'debit-text'}>
@@ -189,11 +189,11 @@ function Transactions() {
                   </td>
                   <td>{transaction.type || '-'}</td>
                   <td>
-                    <span className={`transaction-status ${(transaction.status || '').toLowerCase()}`}>
+                    <span className={`transaction-status ${transaction.tone === 'credit' ? 'credited' : 'debited'}`}>
                       {transaction.status || '-'}
                     </span>
                   </td>
-                  <td>{transaction.remarks || '-'}</td>
+                  <td>{transaction.rejectionReason || '-'}</td>
                 </tr>
               ))}
               {!isLoading && paginatedTransactions.length === 0 && (
